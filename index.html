@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>麻將貪吃蛇 - 專業規則版</title>
+    <title>麻將貪吃蛇 - 字體放大版</title>
     <style>
         :root {
             --bg-color: #0d1117;
@@ -37,8 +37,12 @@
         .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1px solid var(--gold); }
         .tile {
             width: 22px; height: 30px; display: flex; justify-content: center; align-items: center; 
-            font-weight: bold; font-size: 18px; margin: 0 1px; border-radius: 2px; background: #fff;
-            box-shadow: 1px 1px 0 #ccc; line-height: 1; padding-bottom: 4px; color: #1d3557;
+            /* 放大保留區字體 */
+            font-weight: bold; font-size: 22px; 
+            margin: 0 1px; border-radius: 2px; background: #fff;
+            box-shadow: 1px 1px 0 #ccc; line-height: 1; 
+            /* 增加補償以維持放大後的置中 */
+            padding-bottom: 5px; color: #1d3557;
         }
         #controls { margin-top: 15px; display: flex; gap: 50px; }
         .btn {
@@ -95,16 +99,14 @@ const MJ = (() => {
     });
     return {
         random: () => getT(Math.floor(Math.random()*chars.length)),
-        // 嚴格判定：刻子或順子
         isSet: (a, b, c) => {
-            if (a.id === b.id && b.id === c.id) return true; // 刻子
-            if (a.suit === b.suit && b.suit < 3) { // 順子 (字牌排除)
+            if (a.id === b.id && b.id === c.id) return true;
+            if (a.suit === b.suit && b.suit < 3) {
                 const v = [a.val, b.val, c.val].sort((x,y)=>x-y);
                 return (v[1] === v[0]+1 && v[2] === v[1]+1);
             }
             return false;
         },
-        // 判定一對 (將牌)
         isPair: (a, b) => a.id === b.id
     };
 })();
@@ -123,7 +125,6 @@ let snake = {
 let reserved = [], food = null, active = true, speed = 2.5;
 
 function start() {
-    // 初始 5 張黑牌
     for(let i=0; i<5; i++) snake.body.push({ t: MJ.random(), isRed: false });
     for(let i=0; i<500; i++) snake.history.push({x: 180 - i*speed, y: 180});
     genFood();
@@ -163,22 +164,13 @@ function update() {
 }
 
 function handleEat(newT) {
-    // 這裡的核心邏輯：新牌進來，嘗試與蛇身上「同色」的牌組成標準牌組
-    // 如果是紅牌，也必須組成標準牌組才能抵消
     let found = false;
-    
-    // 遍歷蛇身，尋找能與 newT 組成 Set 的兩張牌
     for (let i = 0; i < snake.body.length; i++) {
         for (let j = i + 1; j < snake.body.length; j++) {
             const p1 = snake.body[i];
             const p2 = snake.body[j];
-            
-            // 規則：必須三張顏色相同且符合麻將牌組
             if (p1.isRed === p2.isRed && MJ.isSet(newT, p1.t, p2.t)) {
-                if (!p1.isRed) {
-                    reserved.push([newT, p1.t, p2.t]);
-                }
-                // 從蛇身移除這兩張牌
+                if (!p1.isRed) reserved.push([newT, p1.t, p2.t]);
                 snake.body.splice(j, 1);
                 snake.body.splice(i, 1);
                 found = true;
@@ -187,23 +179,15 @@ function handleEat(newT) {
         }
         if (found) break;
     }
-
-    if (!found) {
-        // 沒組成牌組，增加到蛇頭（設為紅牌）
-        snake.body.unshift({ t: newT, isRed: true });
-    }
-
+    if (!found) snake.body.unshift({ t: newT, isRed: true });
     updateUI();
     checkWinCondition();
 }
 
 function checkWinCondition() {
     const blacks = snake.body.filter(b => !b.isRed);
-    // 胡牌條件：黑牌剩餘 2 張且成對 (將牌)，且紅牌已清空
     if (blacks.length === 2 && snake.body.length === 2) {
-        if (MJ.isPair(blacks[0].t, blacks[1].t)) {
-            calculateWin();
-        }
+        if (MJ.isPair(blacks[0].t, blacks[1].t)) calculateWin();
     }
 }
 
@@ -229,10 +213,14 @@ function drawTile(x, y, char, isRed, isHead) {
     ctx.roundRect(-TILE_SIZE/2, -TILE_SIZE/2, TILE_SIZE, TILE_SIZE, 4);
     ctx.fill();
     ctx.fillStyle = isRed ? "#e63946" : "#1d3557";
-    ctx.font = "bold 20px Arial";
+    
+    // 放大系統字體至 24px
+    ctx.font = "bold 24px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(char, 0, -3);
+    
+    // 配合字體放大，微調 Y 軸偏移量（-3.5）使其在 28x28 的牌面中視覺置中
+    ctx.fillText(char, 0, -3.5);
     ctx.restore();
 }
 
@@ -254,8 +242,7 @@ function die(msg) { active = false; document.getElementById('m-title').innerText
 
 function calculateWin() {
     active = false;
-    document.getElementById('m-title').innerText = "🎉 胡牌！(一對將牌)";
-    document.getElementById('tai-sum').innerText = "符合麻將規矩";
+    document.getElementById('m-title').innerText = "🎉 胡牌！";
     document.getElementById('modal').style.display = 'block';
 }
 
