@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>麻將貪吃蛇 - 完美置中版</title>
+    <title>麻將貪吃蛇 - 視覺優化版</title>
     <style>
         :root {
             --bg-color: #0d1117;
@@ -58,9 +58,9 @@
             font-weight: bold; font-size: 20px; 
             margin: 0 1px; border-radius: 2px; background: #fff;
             box-shadow: 1px 1px 0 #ccc;
-            /* 修正 CSS 置中偏移 */
             line-height: 1;
-            padding-bottom: 2px; 
+            /* 增加底部內距，強行將文字推上去 */
+            padding-bottom: 4px; 
         }
 
         .t-red { color: var(--red-char); }
@@ -278,8 +278,8 @@ function drawT(x,y,c,r,h) {
     ctx.textAlign = "center"; 
     ctx.textBaseline = "middle";
     
-    // 將垂直位置調整為 x+step/2 - 1 (往上移 1-2 像素，使其在視覺上真正置中)
-    ctx.fillText(c, x+step/2, y+step/2 - 1); 
+    // 再次上移：Y 座標改為 y+step/2 - 2 (或更精確的值)
+    ctx.fillText(c, x+step/2, y+step/2 - 2.5); 
 }
 
 function updateUI() {
