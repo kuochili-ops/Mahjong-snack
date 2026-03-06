@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>麻將貪吃蛇 - 字體加大版</title>
+    <title>麻將貪吃蛇 - 完美置中版</title>
     <style>
         :root {
             --bg-color: #0d1117;
@@ -18,7 +18,7 @@
             margin: 0; padding: 0;
             display: flex; flex-direction: column; align-items: center;
             background-color: var(--bg-color);
-            color: #f8f9fa; font-family: "微軟正黑體", sans-serif;
+            color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif;
             touch-action: none; overflow: hidden;
         }
 
@@ -53,12 +53,14 @@
         }
 
         .tile {
-            width: 22px; height: 32px; display: flex; justify-content: center;
-            align-items: center; font-weight: bold; 
-            /* 這裡放大了保留區的系統字型 */
-            font-size: 20px; 
+            width: 24px; height: 32px; 
+            display: flex; justify-content: center; align-items: center; 
+            font-weight: bold; font-size: 20px; 
             margin: 0 1px; border-radius: 2px; background: #fff;
             box-shadow: 1px 1px 0 #ccc;
+            /* 修正 CSS 置中偏移 */
+            line-height: 1;
+            padding-bottom: 2px; 
         }
 
         .t-red { color: var(--red-char); }
@@ -267,21 +269,17 @@ function draw() {
     snake.forEach((s, i) => drawT(s.x*step, s.y*step, s.t.char, s.isRed, i===0));
 }
 
-/**
- * 繪製麻將牌：已調大字體比例
- */
 function drawT(x,y,c,r,h) {
     ctx.fillStyle = h ? "#ffb703" : "#fff";
     ctx.beginPath(); ctx.roundRect(x+2,y+2,step-4,step-4,4); ctx.fill();
     ctx.fillStyle = r ? "#e63946" : "#1d3557";
     
-    // 把字體從 18px 放大到 24px (佔據 step 寬度的 80%)
     ctx.font = "bold 24px Arial"; 
     ctx.textAlign = "center"; 
     ctx.textBaseline = "middle";
     
-    // 微調垂直偏移量，讓放大的字在牌面居中更自然
-    ctx.fillText(c, x+step/2, y+step/2 + 1); 
+    // 將垂直位置調整為 x+step/2 - 1 (往上移 1-2 像素，使其在視覺上真正置中)
+    ctx.fillText(c, x+step/2, y+step/2 - 1); 
 }
 
 function updateUI() {
