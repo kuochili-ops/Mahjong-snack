@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>麻將貪吃蛇 - 視覺優化版</title>
+    <title>麻將貪吃蛇 - 流暢向量版</title>
     <style>
         :root {
             --bg-color: #0d1117;
@@ -18,13 +18,13 @@
             margin: 0; padding: 0;
             display: flex; flex-direction: column; align-items: center;
             background-color: var(--bg-color);
-            color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif;
+            color: #f8f9fa; font-family: "微軟正黑體", sans-serif;
             touch-action: none; overflow: hidden;
         }
 
         #dashboard {
             width: 360px; display: flex; justify-content: space-between;
-            padding: 15px 0; font-size: 16px; font-weight: bold; color: var(--gold);
+            padding: 10px 0; font-size: 14px; font-weight: bold; color: var(--gold);
         }
 
         canvas {
@@ -35,16 +35,16 @@
         }
 
         #ui-panel {
-            width: 360px; margin-top: 15px;
+            width: 360px; margin-top: 10px;
             background: rgba(255,255,255,0.05);
-            border-radius: 10px; padding: 10px;
+            border-radius: 10px; padding: 8px;
             border: 1px solid rgba(255,255,255,0.1);
         }
 
-        .section-label { font-size: 12px; color: #81b29a; margin-bottom: 8px; text-align: center; }
+        .section-label { font-size: 12px; color: #81b29a; margin-bottom: 5px; text-align: center; }
 
         #reserved-area {
-            display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 45px;
+            display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 40px;
         }
 
         .set-box {
@@ -53,46 +53,44 @@
         }
 
         .tile {
-            width: 24px; height: 32px; 
+            width: 22px; height: 30px; 
             display: flex; justify-content: center; align-items: center; 
-            font-weight: bold; font-size: 20px; 
+            font-weight: bold; font-size: 18px; 
             margin: 0 1px; border-radius: 2px; background: #fff;
             box-shadow: 1px 1px 0 #ccc;
-            line-height: 1;
-            /* 增加底部內距，強行將文字推上去 */
-            padding-bottom: 4px; 
+            line-height: 1; padding-bottom: 4px; 
         }
 
-        .t-red { color: var(--red-char); }
-        .t-black { color: var(--black-char); }
-
-        #controls { margin-top: 20px; display: flex; gap: 60px; }
+        #controls { margin-top: 15px; display: flex; gap: 50px; }
 
         .btn {
             width: 80px; height: 80px; border-radius: 50%;
             border: 4px solid rgba(255,255,255,0.3);
-            color: white; font-size: 30px; cursor: pointer;
+            color: white; font-size: 24px; cursor: pointer;
             display: flex; flex-direction: column; justify-content: center;
             align-items: center; user-select: none;
-            transition: transform 0.1s;
+            background: rgba(255,255,255,0.1);
         }
 
-        #ccw { background: #457b9d; box-shadow: 0 6px 0 #1d3557; }
-        #cw { background: #e63946; box-shadow: 0 6px 0 #a8dadc; }
-        .btn:active { transform: translateY(4px); box-shadow: none; }
+        #l-btn { background: #457b9d; box-shadow: 0 5px 0 #1d3557; }
+        #r-btn { background: #e63946; box-shadow: 0 5px 0 #a8dadc; }
+        .btn:active { transform: translateY(3px); box-shadow: none; }
 
         #modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.9); padding: 40px; border-radius: 15px;
+            background: rgba(0,0,0,0.95); padding: 30px; border-radius: 15px;
             text-align: center; display: none; border: 2px solid var(--gold); z-index: 100;
+            width: 280px;
         }
+        
+        #tai-list { text-align: left; font-size: 14px; margin: 10px 0; max-height: 100px; overflow-y: auto;}
     </style>
 </head>
 <body>
 
     <div id="dashboard">
         <div>剩餘黑字: <span id="b-num">0</span></div>
-        <div>蛇身長度: <span id="s-len">0</span></div>
+        <div>蛇身長: <span id="s-len">0</span></div>
     </div>
 
     <canvas id="gameCanvas" width="360" height="360"></canvas>
@@ -103,27 +101,26 @@
     </div>
 
     <div id="controls">
-        <div id="ccw" class="btn">↺<span style="font-size:10px">逆時針</span></div>
-        <div id="cw" class="btn">↻<span style="font-size:10px">順時針</span></div>
+        <div id="l-btn" class="btn">◀<span style="font-size:10px">左轉</span></div>
+        <div id="r-btn" class="btn">▶<span style="font-size:10px">右轉</span></div>
     </div>
 
     <div id="modal">
-        <h1 id="m-title">遊戲結束</h1>
-        <button onclick="location.reload()" style="padding: 10px 25px; font-size: 18px; cursor: pointer;">重來一局</button>
+        <h2 id="m-title">遊戲結束</h2>
+        <div id="tai-list"></div>
+        <div id="tai-sum" style="color:var(--gold); font-size:18px; margin-bottom:10px;"></div>
+        <button onclick="location.reload()" style="padding: 10px 25px; cursor: pointer; background: var(--gold); border:none; border-radius:5px;">再玩一局</button>
     </div>
 
 <script>
-/**
- * 麻將模組
- */
 const MJ = (() => {
-    const chars = ['🀇','🀈','🀉','🀊','🀋','🀌','🀍','🀎','🀏','🀙','🀚','🀛','🀜','🀝','🀞','🀟','🀠','🀡','🀐','🀑','🀒','🀓','🀔','🀕','🀖','🀗','🀘'];
-    const getT = (i) => ({ id: i, char: chars[i], suit: Math.floor(i/9), val: (i%9)+1 });
+    const chars = ['🀇','🀈','🀉','🀊','🀋','🀌','🀍','🀎','🀏','🀙','🀚','🀛','🀜','🀝','🀞','🀟','🀠','🀡','🀐','🀑','🀒','🀓','🀔','🀕','🀖','🀗','🀘','🀀','🀁','🀂','🀃','🀄','🀅','🀆'];
+    const getT = (i) => ({ id: i, char: chars[i], suit: i < 27 ? Math.floor(i/9) : 3, val: i < 27 ? (i%9)+1 : (i-26) });
     return {
         random: () => getT(Math.floor(Math.random()*chars.length)),
         isSet: (a, b, c) => {
             if (a.id === b.id && b.id === c.id) return true;
-            if (a.suit === b.suit && b.suit === c.suit) {
+            if (a.suit === b.suit && b.suit < 3) {
                 const v = [a.val, b.val, c.val].sort((x,y)=>x-y);
                 return (v[1] === v[0]+1 && v[2] === v[1]+1);
             }
@@ -152,14 +149,17 @@ const MJ = (() => {
     };
 })();
 
-/**
- * 遊戲主體
- */
 const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
-const step = 30, fps = 450;
-let snake = [], reserved = [], food = null, dir = 0, active = true;
-const vectors = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const TILE_SIZE = 28;
+const GAP = 22; // 節點間距
+let snake = {
+    head: { x: 180, y: 180, angle: 0 },
+    body: [], // 存放麻將牌對象
+    history: [] // 存放座標路徑
+};
+let reserved = [], food = null, active = true;
+let keys = { left: false, right: false };
 
 function start() {
     let initial = [];
@@ -167,50 +167,71 @@ function start() {
     const processed = MJ.extract(initial);
     reserved = processed.sets;
     processed.rem.forEach((t, i) => {
-        snake.push({ x: 5-i, y: 5, t, isRed: false });
+        snake.body.push({ t, isRed: false });
     });
+    // 初始化歷史路徑
+    for(let i=0; i<500; i++) {
+        snake.history.push({ x: 180 - i, y: 180 });
+    }
     genFood();
     updateUI();
-    run();
+    requestAnimationFrame(gameLoop);
 }
 
 function genFood() {
-    let valid = false;
-    while(!valid) {
-        food = { x: Math.floor(Math.random()*12), y: Math.floor(Math.random()*12), t: MJ.random() };
-        valid = !snake.some(s => s.x === food.x && s.y === food.y);
-    }
+    food = { x: 30 + Math.random()*300, y: 30 + Math.random()*300, t: MJ.random() };
 }
 
-function run() {
+function gameLoop() {
     if(!active) return;
-    const next = { x: snake[0].x + vectors[dir].x, y: snake[0].y + vectors[dir].y };
-
-    if(next.x < 0 || next.x >= 12 || next.y < 0 || next.y >= 12) return die("放槍！撞到邊界");
-    for(let i=0; i<snake.length - 1; i++) {
-        if(next.x === snake[i].x && next.y === snake[i].y) return die("放槍！撞到自己了");
-    }
-
-    if(next.x === food.x && next.y === food.y) {
-        handleEat(next, food.t);
-        genFood();
-    } else {
-        for(let i=snake.length-1; i>0; i--) {
-            snake[i].x = snake[i-1].x; snake[i].y = snake[i-1].y;
-        }
-        snake[0].x = next.x; snake[0].y = next.y;
-    }
-
+    update();
     draw();
-    setTimeout(run, fps);
+    requestAnimationFrame(gameLoop);
 }
 
-function handleEat(headPos, newT) {
-    const blacks = snake.filter(s => !s.isRed);
-    const reds = snake.filter(s => s.isRed);
+function update() {
+    // 轉向邏輯
+    if (keys.left) snake.head.angle -= 0.08;
+    if (keys.right) snake.head.angle += 0.08;
+
+    // 前進位移
+    const speed = 2.2;
+    snake.head.x += Math.cos(snake.head.angle) * speed;
+    snake.head.y += Math.sin(snake.head.angle) * speed;
+
+    // 紀錄路徑
+    snake.history.unshift({ x: snake.head.x, y: snake.head.y });
+    if (snake.history.length > 1000) snake.history.pop();
+
+    // 邊界檢查
+    if (snake.head.x < 0 || snake.head.x > 360 || snake.head.y < 0 || snake.head.y > 360) {
+        return die("撞牆放槍！");
+    }
+
+    // 自撞檢查 (跳過前 20 個點防止自撞頭部)
+    for (let i = 1; i < snake.body.length; i++) {
+        const pos = snake.history[i * GAP];
+        const dx = snake.head.x - pos.x;
+        const dy = snake.head.y - pos.y;
+        if (i > 3 && Math.sqrt(dx*dx + dy*dy) < 15) return die("自殺放槍！");
+    }
+
+    // 吃到食物
+    const fdx = snake.head.x - food.x;
+    const fdy = snake.head.y - food.y;
+    if (Math.sqrt(fdx*fdx + fdy*fdy) < 20) {
+        handleEat(food.t);
+        genFood();
+    }
+}
+
+function handleEat(newT) {
+    const blacks = snake.body.filter(b => !b.isRed);
+    const reds = snake.body.filter(b => b.isRed);
     let matchedSet = null;
     let partsToRemove = [];
 
+    // 湊組邏輯
     for(let i=0; i<blacks.length && !matchedSet; i++) {
         for(let j=i+1; j<blacks.length && !matchedSet; j++) {
             if(MJ.isSet(newT, blacks[i].t, blacks[j].t)) {
@@ -232,77 +253,101 @@ function handleEat(headPos, newT) {
 
     if(matchedSet) {
         reserved.push(matchedSet);
-        const remaining = snake.filter(s => !partsToRemove.includes(s));
-        let oldPositions = snake.map(s => ({x: s.x, y: s.y}));
-        oldPositions.unshift(headPos);
-
-        snake = remaining;
-        snake.forEach((part, index) => {
-            part.x = oldPositions[index].x;
-            part.y = oldPositions[index].y;
-        });
-        if(snake.length > 0) {
-            snake[0].x = headPos.x;
-            snake[0].y = headPos.y;
-        }
+        snake.body = snake.body.filter(b => !partsToRemove.includes(b));
     } else {
-        const oldPos = snake.map(s => ({x: s.x, y: s.y}));
-        snake.unshift({ x: headPos.x, y: headPos.y, t: newT, isRed: true });
-        for(let i=1; i<snake.length; i++) {
-            snake[i].x = oldPos[i-1].x;
-            snake[i].y = oldPos[i-1].y;
-        }
+        snake.body.unshift({ t: newT, isRed: true });
     }
-
     updateUI();
-    if(snake.filter(s => !s.isRed).length === 0) win();
+    if(snake.body.filter(b => !b.isRed).length === 0) calculateWin();
 }
 
 function draw() {
     ctx.clearRect(0,0,360,360);
-    ctx.strokeStyle = "rgba(255,255,255,0.05)";
-    for(let i=0; i<=360; i+=step) {
+    
+    // 網格背景
+    ctx.strokeStyle = "rgba(255,255,255,0.03)";
+    for(let i=0; i<=360; i+=30) {
         ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke();
     }
-    drawT(food.x*step, food.y*step, food.t.char, true, false);
-    snake.forEach((s, i) => drawT(s.x*step, s.y*step, s.t.char, s.isRed, i===0));
+
+    // 畫食物
+    drawTile(food.x, food.y, food.t.char, true, false);
+
+    // 畫蛇身 (倒序畫，頭在最上)
+    for (let i = snake.body.length - 1; i >= 0; i--) {
+        const pos = snake.history[i * GAP] || { x: 0, y: 0 };
+        drawTile(pos.x, pos.y, snake.body[i].t.char, snake.body[i].isRed, i === 0);
+    }
 }
 
-function drawT(x,y,c,r,h) {
-    ctx.fillStyle = h ? "#ffb703" : "#fff";
-    ctx.beginPath(); ctx.roundRect(x+2,y+2,step-4,step-4,4); ctx.fill();
-    ctx.fillStyle = r ? "#e63946" : "#1d3557";
+function drawTile(x, y, char, isRed, isHead) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = isHead ? "#ffb703" : "#fff";
+    ctx.beginPath();
+    ctx.roundRect(-TILE_SIZE/2, -TILE_SIZE/2, TILE_SIZE, TILE_SIZE, 4);
+    ctx.fill();
     
-    ctx.font = "bold 24px Arial"; 
-    ctx.textAlign = "center"; 
+    ctx.fillStyle = isRed ? "#e63946" : "#1d3557";
+    ctx.font = "bold 20px Arial";
+    ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    
-    // 再次上移：Y 座標改為 y+step/2 - 2 (或更精確的值)
-    ctx.fillText(c, x+step/2, y+step/2 - 2.5); 
+    ctx.fillText(char, 0, -2);
+    ctx.restore();
 }
 
 function updateUI() {
-    document.getElementById('b-num').innerText = snake.filter(s => !s.isRed).length;
-    document.getElementById('s-len').innerText = snake.length;
+    document.getElementById('b-num').innerText = snake.body.filter(b => !b.isRed).length;
+    document.getElementById('s-len').innerText = snake.body.length;
     const area = document.getElementById('reserved-area');
     area.innerHTML = '';
     reserved.forEach(s => {
         const d = document.createElement('div'); d.className='set-box';
         s.forEach(t => {
-            const i = document.createElement('div'); i.className='tile t-black'; i.innerText=t.char;
-            d.appendChild(i);
+            const i = document.createElement('div'); i.className='tile'; 
+            i.style.color = '#1d3557'; i.innerText=t.char; d.appendChild(i);
         });
         area.appendChild(d);
     });
 }
 
-function die(t) { active = false; showM(t); }
-function win() { active = false; showM("🎉 胡牌！恭喜！ 🎉"); }
-function showM(t) { document.getElementById('m-title').innerText=t; document.getElementById('modal').style.display='block'; }
+function calculateWin() {
+    active = false;
+    let taiMap = [], total = 0;
+    const all = [...reserved.flat(), ...snake.body.map(b=>b.t)];
+    const isPinfu = reserved.every(s => s[0].id !== s[1].id) && all.every(t => t.suit < 3);
+    const suits = new Set(all.filter(t => t.suit < 3).map(t => t.suit));
+    const hasHonors = all.some(t => t.suit === 3);
 
-document.getElementById('cw').onclick = () => { dir = (dir+1)%4; draw(); };
-document.getElementById('ccw').onclick = () => { dir = (dir+3)%4; draw(); };
+    if(isPinfu) { taiMap.push("平胡 2台"); total += 2; }
+    if(snake.body.length <= 2) { taiMap.push("全求人 2台"); total += 2; }
+    if(suits.size === 1 && hasHonors) { taiMap.push("湊一色 4台"); total += 4; }
+    else if(suits.size === 1 && !hasHonors) { taiMap.push("清一色 8台"); total += 8; }
+
+    const hIds = reserved.filter(s => s[0].id === s[1].id && s[0].suit === 3).map(s => s[0].id);
+    if(hIds.includes(31)) { taiMap.push("紅中 1台"); total += 1; }
+    if(hIds.includes(32)) { taiMap.push("發財 1台"); total += 1; }
+    if(hIds.includes(33)) { taiMap.push("白板 1台"); total += 1; }
+    
+    document.getElementById('m-title').innerText = "🎉 胡牌！";
+    document.getElementById('tai-list').innerHTML = taiMap.map(t => `<div>${t}</div>`).join('') || "底台 1台";
+    document.getElementById('tai-sum').innerText = `總計: ${total || 1} 台`;
+    document.getElementById('modal').style.display = 'block';
+}
+
+function die(msg) { active = false; document.getElementById('m-title').innerText = msg; document.getElementById('modal').style.display = 'block'; }
+
+// 控制器
+const lBtn = document.getElementById('l-btn');
+const rBtn = document.getElementById('r-btn');
+lBtn.ontouchstart = () => keys.left = true;
+lBtn.ontouchend = () => keys.left = false;
+rBtn.ontouchstart = () => keys.right = true;
+rBtn.ontouchend = () => keys.right = false;
+// 鍵盤備援
+window.onkeydown = (e) => { if(e.key==='ArrowLeft') keys.left=true; if(e.key==='ArrowRight') keys.right=true; };
+window.onkeyup = (e) => { if(e.key==='ArrowLeft') keys.left=false; if(e.key==='ArrowRight') keys.right=false; };
 
 start();
 </script>
