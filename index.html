@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 真實牌數版</title>
+    <title>白六麻將貪食蛇 - 修正顯示版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; --purple: #9d4edd; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
@@ -24,9 +24,9 @@
         #form-set-btn { background: var(--blue); color: white; }
         #start-game-btn { background: var(--gold); color: #000; }
         #controls { margin-top: 15px; display: flex; gap: 50px; }
-        .btn { width: 80px; height: 80px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.2); color: white; font-size: 24px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; align-items: center; user-select: none; }
-        #l-btn { background: var(--blue); }
-        #r-btn { background: var(--red); }
+        .btn { width: 80px; height: 80px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.2); color: white; font-size: 32px; cursor: pointer; display: flex; justify-content: center; align-items: center; user-select: none; }
+        #l-btn { background: var(--blue); box-shadow: 0 5px 0 #1d3557; }
+        #r-btn { background: var(--red); box-shadow: 0 5px 0 #941b24; }
         #modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); padding: 30px; border-radius: 15px; text-align: center; display: none; border: 2px solid var(--gold); z-index: 2000; width: 300px; }
     </style>
 </head>
@@ -34,7 +34,7 @@
 
 <div id="sorting-overlay">
     <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 真實牌數版 (17張)</h2>
-    <div class="section-label" style="margin-bottom:15px;">每種牌僅 4 張，嚴禁第 5 張出現</div>
+    <div class="section-label" style="margin-bottom:15px;">請先從手牌選出組好的牌組（順子/刻子/暗槓）</div>
     <div id="hand-area"></div>
     <div id="status-tip" style="color:var(--gold); font-size:14px; min-height:20px;"></div>
     <div class="btn-group" style="margin-top:20px;">
@@ -44,8 +44,8 @@
 </div>
 
 <div id="dashboard">
-    <div>牌池餘: <span id="pool-num">136</span></div>
-    <div>組數: <span id="r-count">0</span> / 5</div>
+    <div>牌池: <span id="pool-num">136</span></div>
+    <div>保留: <span id="r-count">0</span>/5</div>
     <div>刻/槓: <span id="k-count">0</span></div>
 </div>
 
@@ -72,34 +72,21 @@
 const MJ = (() => {
     const chars = ['🀇','🀈','🀉','🀊','🀋','🀌','🀍','🀎','🀏','🀙','🀚','🀛','🀜','🀝','🀞','🀟','🀠','🀡','🀐','🀑','🀒','🀓','🀔','🀕','🀖','🀗','🀘','🀀','🀁','🀂','🀃','🀄','🀅','🀆'];
     let pool = [];
-
     const initPool = () => {
         pool = [];
-        for(let i=0; i<chars.length; i++) {
-            for(let j=0; j<4; j++) pool.push(i); // 每種牌進 4 張
-        }
-        shuffle(pool);
-    };
-
-    const shuffle = (array) => {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
+        for(let i=0; i<chars.length; i++) for(let j=0; j<4; j++) pool.push(i);
+        for(let i=pool.length-1; i>0; i--){
+            const j=Math.floor(Math.random()*(i+1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
         }
     };
-
     const getT = (id) => ({ id, char: chars[id], suit: id < 27 ? Math.floor(id/9) : 3, val: id < 27 ? (id%9)+1 : (id-26) });
-
     initPool();
-
     return {
-        draw: () => {
-            if (pool.length === 0) initPool();
-            return getT(pool.pop());
-        },
+        draw: () => { if (pool.length === 0) initPool(); return getT(pool.pop()); },
         getPoolCount: () => pool.length,
         isSet: (tiles) => {
-            const arr = [...tiles].sort((x, y) => x.id - y.id);
+            const arr = [...tiles].sort((a, b) => a.id - b.id);
             if (arr.length === 3) {
                 if (arr[0].id === arr[1].id && arr[1].id === arr[2].id) return "刻子";
                 if (arr[0].suit === arr[1].suit && arr[1].suit === arr[2].suit && arr[0].suit < 3) {
@@ -115,10 +102,13 @@ const MJ = (() => {
     };
 })();
 
-let snake = { x: 50, y: 180, dirIndex: 0, dirs: [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}], body: [], history: [] };
+let snake = { x: 180, y: 180, dirIndex: 0, dirs: [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}], body: [], history: [] };
 let reserved = [], food = null, active = false, speed = 2.4, initialHand = [], selectedItems = [];
+const cvs = document.getElementById('gameCanvas');
+const ctx = cvs.getContext('2d');
 
 function initSorting() {
+    initialHand = [];
     for(let i=0; i<17; i++) initialHand.push(MJ.draw());
     renderHand();
 }
@@ -147,11 +137,9 @@ function renderHand() {
 }
 
 document.getElementById('form-set-btn').onclick = () => {
-    const tiles = selectedItems.map(s => s.t);
-    const type = MJ.isSet(tiles);
-    if(type) {
-        if(reserved.length >= 5) return;
-        reserved.push({tiles: tiles, type: type});
+    const type = MJ.isSet(selectedItems.map(s => s.t));
+    if(type && reserved.length < 5) {
+        reserved.push({tiles: selectedItems.map(s => s.t), type: type});
         const indices = selectedItems.map(s => s.idx).sort((a,b)=>b-a);
         indices.forEach(i => initialHand.splice(i, 1));
         renderHand();
@@ -160,52 +148,72 @@ document.getElementById('form-set-btn').onclick = () => {
 
 document.getElementById('start-game-btn').onclick = () => {
     document.getElementById('sorting-overlay').style.display = 'none';
+    
+    // 初始化蛇身：剩下的黑牌組成身體
     snake.body = initialHand.map(t => ({t, isRed: false}));
-    for(let i=0; i<500; i++) snake.history.push({x: 50 - i*speed, y: 180});
+    
+    // 核心修正：初始化歷史軌跡，確保蛇身有座標可以跟隨
+    snake.x = 180; snake.y = 180;
+    snake.history = [];
+    for(let i=0; i < 500; i++) {
+        snake.history.push({x: 180 - (i * speed), y: 180});
+    }
+    
     active = true;
     genFood();
     updateUI();
     gameLoop();
 };
 
-function genFood() { food = { x: 30 + Math.random()*300, y: 30 + Math.random()*300, t: MJ.draw() }; }
+function genFood() { food = { x: 40 + Math.random()*280, y: 40 + Math.random()*280, t: MJ.draw() }; }
 
-function gameLoop() { if(!active) return; update(); draw(); requestAnimationFrame(gameLoop); }
+function gameLoop() { 
+    if(!active) return; 
+    update(); 
+    draw(); 
+    requestAnimationFrame(gameLoop); 
+}
 
 function update() {
     const d = snake.dirs[snake.dirIndex];
-    snake.x += d.x * speed; snake.y += d.y * speed;
+    snake.x += d.x * speed;
+    snake.y += d.y * speed;
     snake.history.unshift({x: snake.x, y: snake.y});
+    if (snake.history.length > 1000) snake.history.pop();
+
     if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("撞牆了！");
+    
+    // 碰撞偵測（從第3節開始，避免咬到頭）
     for (let i = 3; i < snake.body.length; i++) {
         const p = snake.history[i * 14];
-        if (p && Math.sqrt((snake.x-p.x)**2 + (snake.y-p.y)**2) < 15) return die("咬到自己了！");
+        if (p && Math.sqrt((snake.x-p.x)**2 + (snake.y-p.y)**2) < 12) return die("咬到自己了！");
     }
-    if (Math.sqrt((snake.x-food.x)**2 + (snake.y-food.y)**2) < 22) {
+
+    if (food && Math.sqrt((snake.x-food.x)**2 + (snake.y-food.y)**2) < 22) {
         handleEat(food.t);
         genFood();
     }
 }
 
 function handleEat(newT) {
+    // 明刻偵測
     for (let set of reserved) {
         if ((set.type.includes("刻子") || set.type.includes("槓")) && set.tiles[0].id === newT.id) {
             if(set.tiles.length < 4) {
                 set.tiles.push(newT);
                 set.type = "明刻 (槓)";
-                updateUI();
-                return;
+                updateUI(); return;
             }
         }
     }
+    // 湊組偵測
     let found = false;
     for (let i = 0; i < snake.body.length; i++) {
         for (let j = i + 1; j < snake.body.length; j++) {
-            const p1 = snake.body[i], p2 = snake.body[j];
-            const setType = MJ.isSet([newT, p1.t, p2.t]);
-            if (p1.isRed === p2.isRed && setType) {
-                if (!p1.isRed && reserved.length < 5) {
-                    reserved.push({tiles: [newT, p1.t, p2.t], type: setType});
+            const setType = MJ.isSet([newT, snake.body[i].t, snake.body[j].t]);
+            if (snake.body[i].isRed === snake.body[j].isRed && setType) {
+                if (!snake.body[i].isRed && reserved.length < 5) {
+                    reserved.push({tiles: [newT, snake.body[i].t, snake.body[j].t], type: setType});
                 }
                 snake.body.splice(j, 1); snake.body.splice(i, 1);
                 found = true; break;
@@ -215,13 +223,20 @@ function handleEat(newT) {
     }
     if (!found) snake.body.unshift({ t: newT, isRed: true });
     updateUI();
+    
     const blacks = snake.body.filter(b => !b.isRed);
     if (reserved.length === 5 && blacks.length === 2 && MJ.isPair(blacks[0].t, blacks[1].t)) calculateWin();
 }
 
 function draw() {
     ctx.clearRect(0,0,360,360);
-    drawTile(food.x, food.y, food.t.char, true, false);
+    // 繪製格線
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    for(let i=0; i<=360; i+=30) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke(); }
+
+    if(food) drawTile(food.x, food.y, food.t.char, true, false);
+    
+    // 從尾巴往頭畫，頭在最上面
     for (let i = snake.body.length - 1; i >= 0; i--) {
         const p = snake.history[i * 14];
         if(p) drawTile(p.x, p.y, snake.body[i].t.char, snake.body[i].isRed, i === 0);
@@ -233,14 +248,13 @@ function drawTile(x, y, char, isRed, isHead) {
     ctx.fillStyle = isHead ? "#ffb703" : "#fff";
     ctx.beginPath(); ctx.roundRect(-14, -14, 28, 28, 4); ctx.fill();
     ctx.fillStyle = isRed ? "#e63946" : "#1d3557";
-    ctx.font = "bold 22px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = "bold 20px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(char, 0, -2); ctx.restore();
 }
 
 function updateUI() {
     document.getElementById('pool-num').innerText = MJ.getPoolCount();
     document.getElementById('r-count').innerText = reserved.length;
-    document.getElementById('b-num').innerText = snake.body.filter(b => !b.isRed).length;
     const kCount = reserved.filter(r => r.type.includes("刻子") || r.type.includes("槓")).length;
     document.getElementById('k-count').innerText = kCount;
     const area = document.getElementById('reserved-area'); area.innerHTML = '';
@@ -262,6 +276,7 @@ function calculateWin() {
     if (kCount >= 5) { list.push("五暗刻 13 台"); tai += 13; }
     else if (kCount === 4) { list.push("四暗刻 8 台"); tai += 8; }
     if (snake.body.length === 2) { list.push("全求人 2 台"); tai += 2; }
+    document.getElementById('m-title').innerText = "🎉 恭喜胡牌！";
     document.getElementById('tai-list').innerHTML = list.map(l => `<div>• ${l}</div>`).join('');
     document.getElementById('tai-sum').innerText = `總計：${tai} 台`;
     document.getElementById('modal').style.display = 'block';
