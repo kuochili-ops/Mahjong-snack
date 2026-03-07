@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 黑牌保留邏輯版</title>
+    <title>白六麻將貪食蛇 - 終極規則版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; --purple: #9d4edd; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
@@ -33,10 +33,9 @@
 <body>
 
 <div id="sorting-overlay">
-    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 黑牌保留機制修正</h2>
-    <div class="section-label" style="margin-bottom:15px;">含黑牌之組合將移入保留區</div>
+    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 終極麻將貪食蛇</h2>
+    <div class="section-label" style="margin-bottom:15px;">開局配牌：請選出 3-4 張成組的牌</div>
     <div id="hand-area"></div>
-    <div id="status-tip" style="color:var(--gold); font-size:14px; min-height:20px;"></div>
     <div class="btn-group" style="margin-top:20px;">
         <button id="form-set-btn" class="ctrl-btn">組成牌組</button>
         <button id="start-game-btn" class="ctrl-btn">進入遊戲</button>
@@ -46,13 +45,13 @@
 <div id="dashboard">
     <div>牌池: <span id="pool-num">136</span></div>
     <div>保留: <span id="r-count">0</span>/5</div>
-    <div>刻/槓: <span id="k-count">0</span></div>
+    <div>聽牌: <span id="listen-status">待定</span></div>
 </div>
 
 <canvas id="gameCanvas" width="360" height="360"></canvas>
 
 <div id="ui-panel">
-    <div class="section-label">保留區 (含黑即入)</div>
+    <div class="section-label">保留區 (滿5組可胡牌)</div>
     <div id="reserved-area"></div>
 </div>
 
@@ -128,7 +127,7 @@ function renderHand() {
                 selectedItems = selectedItems.filter(item => item.idx !== idx);
             } else if(selectedItems.length < 4) {
                 div.classList.add('selected');
-                selectedItems.push({t, idx, div});
+                selectedItems.push({t, idx});
             }
         };
         handArea.appendChild(div);
@@ -137,9 +136,10 @@ function renderHand() {
 }
 
 document.getElementById('form-set-btn').onclick = () => {
-    const type = MJ.isSet(selectedItems.map(s => s.t));
+    const tiles = selectedItems.map(s => s.t);
+    const type = MJ.isSet(tiles);
     if(type && reserved.length < 5) {
-        reserved.push({tiles: selectedItems.map(s => s.t), type: type});
+        reserved.push({tiles: tiles, type: type});
         const indices = selectedItems.map(s => s.idx).sort((a,b)=>b-a);
         indices.forEach(i => initialHand.splice(i, 1));
         renderHand();
@@ -151,7 +151,7 @@ document.getElementById('start-game-btn').onclick = () => {
     snake.body = initialHand.map(t => ({t, isRed: false}));
     snake.x = 180; snake.y = 180;
     snake.history = [];
-    for(let i=0; i < 500; i++) snake.history.push({x: 180 - (i * speed), y: 180});
+    for(let i=0; i < 600; i++) snake.history.push({x: 180 - (i * speed), y: 180});
     active = true;
     genFood();
     updateUI();
@@ -166,10 +166,10 @@ function update() {
     snake.x += d.x * speed; snake.y += d.y * speed;
     snake.history.unshift({x: snake.x, y: snake.y});
     if (snake.history.length > 1000) snake.history.pop();
-    if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("撞牆了！");
-    for (let i = 3; i < snake.body.length; i++) {
+    if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("出界了！");
+    for (let i = 4; i < snake.body.length; i++) {
         const p = snake.history[i * 14];
-        if (p && Math.sqrt((snake.x-p.x)**2 + (snake.y-p.y)**2) < 12) return die("咬到自己了！");
+        if (p && Math.sqrt((snake.x-p.x)**2 + (snake.y-p.y)**2) < 10) return die("撞到自己了！");
     }
     if (food && Math.sqrt((snake.x-food.x)**2 + (snake.y-food.y)**2) < 22) {
         handleEat(food.t);
@@ -178,7 +178,7 @@ function update() {
 }
 
 function handleEat(newT) {
-    // 1. 加槓/明刻優先 (不分顏色，只要ID對就吸進去)
+    // 1. 加槓/明刻優先
     for (let set of reserved) {
         if ((set.type.includes("刻子") || set.type.includes("槓")) && set.tiles[0].id === newT.id) {
             if(set.tiles.length < 4) {
@@ -198,35 +198,31 @@ function handleEat(newT) {
             const setType = MJ.isSet([newT, p1.t, p2.t]);
             
             if (setType) {
-                // 檢查是否含有黑牌 (新吃的 newT 是紅牌，所以看蛇身 p1, p2)
-                // 規則：只要三張裡有任何一張是黑牌，就移入保留區
-                // 這裡 newT 永遠是紅牌（剛吃的），所以只要 p1 或 p2 有黑牌就成立
                 const hasBlack = (!p1.isRed || !p2.isRed); 
-
                 if (hasBlack && reserved.length < 5) {
-                    // 移入保留區，且統一顯示為「黑牌組」
                     reserved.push({tiles: [newT, p1.t, p2.t], type: setType});
-                    snake.body.splice(j, 1);
-                    snake.body.splice(i, 1);
-                    found = true;
-                    break;
+                    snake.body.splice(j, 1); snake.body.splice(i, 1);
+                    found = true; break;
                 } else if (!hasBlack) {
-                    // 三張都是紅牌 (newT 是紅的，p1, p2 也是紅的) -> 直接消除
-                    snake.body.splice(j, 1);
-                    snake.body.splice(i, 1);
-                    found = true;
-                    break;
+                    // 純紅三張 -> 直接消除
+                    snake.body.splice(j, 1); snake.body.splice(i, 1);
+                    found = true; break;
                 }
             }
         }
         if (found) break;
     }
     
+    // 3. 沒湊成組，則加入蛇頭 (紅牌)
     if (!found) snake.body.unshift({ t: newT, isRed: true });
     updateUI();
     
-    const blacks = snake.body.filter(b => !b.isRed);
-    if (reserved.length === 5 && blacks.length === 2 && MJ.isPair(blacks[0].t, blacks[1].t)) calculateWin();
+    // 4. 胡牌判定：5組 + 一對 (至少含一黑)
+    if (reserved.length === 5 && snake.body.length === 2) {
+        const b1 = snake.body[0], b2 = snake.body[1];
+        const hasBlack = (!b1.isRed || !b2.isRed);
+        if (MJ.isPair(b1.t, b2.t) && hasBlack) calculateWin();
+    }
 }
 
 function draw() {
@@ -252,14 +248,19 @@ function drawTile(x, y, char, isRed, isHead) {
 function updateUI() {
     document.getElementById('pool-num').innerText = MJ.getPoolCount();
     document.getElementById('r-count').innerText = reserved.length;
-    const kCount = reserved.filter(r => r.type.includes("刻子") || r.type.includes("槓")).length;
-    document.getElementById('k-count').innerText = kCount;
+    
+    // 聽牌偵測：如果保留區滿5組，且蛇身剩一張黑牌，提示聽牌
+    const blackCount = snake.body.filter(b => !b.isRed).length;
+    const listenStatus = (reserved.length === 5 && blackCount === 1) ? "聽牌中！" : (reserved.length === 5 ? "拼將牌" : "湊組中");
+    const statusEl = document.getElementById('listen-status');
+    statusEl.innerText = listenStatus;
+    statusEl.style.color = listenStatus === "聽牌中！" ? "#e63946" : "var(--gold)";
+
     const area = document.getElementById('reserved-area'); area.innerHTML = '';
     reserved.forEach(s => {
         const d = document.createElement('div'); d.className='set-box';
         s.tiles.forEach(t => { const i = document.createElement('div'); i.className='tile'; i.innerText=t.char; d.appendChild(i); });
         const tag = document.createElement('div'); tag.className='set-type-tag'; tag.innerText = s.type;
-        if(s.type.includes("槓")) tag.style.background = "#9d4edd";
         d.appendChild(tag); area.appendChild(d);
     });
 }
