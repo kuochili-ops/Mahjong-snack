@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 十七張四刻挑戰版</title>
+    <title>白六麻將貪食蛇 - 明刻加槓版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
@@ -11,9 +11,9 @@
         canvas { background: var(--board); border: 6px solid #4e342e; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         #ui-panel { width: 360px; margin-top: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px; border: 1px solid rgba(255,255,255,0.1); }
         .section-label { font-size: 12px; color: #81b29a; text-align: center; margin-bottom: 5px; }
-        #reserved-area { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 40px; }
-        .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1px solid var(--gold); position: relative; }
-        .set-type-tag { position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); font-size: 9px; color: var(--gold); background: #000; padding: 0 2px; border-radius: 2px; border: 1px solid var(--gold); white-space: nowrap; }
+        #reserved-area { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 45px; }
+        .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1px solid var(--gold); position: relative; margin-bottom: 10px; }
+        .set-type-tag { position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); font-size: 9px; color: #fff; background: #e63946; padding: 0 3px; border-radius: 2px; white-space: nowrap; }
         .tile { width: 22px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 22px; margin: 0 1px; border-radius: 2px; background: #fff; box-shadow: 1px 1px 0 #ccc; color: #1d3557; padding-bottom: 5px; line-height: 1; }
         
         #sorting-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -38,7 +38,7 @@
 
 <div id="sorting-overlay">
     <h2 style="color:var(--gold); margin-bottom:5px;">開局理牌 (十七張)</h2>
-    <div class="section-label" style="margin-bottom:15px;">挑戰：組成「四刻」台數翻倍！</div>
+    <div class="section-label" style="margin-bottom:15px;">吃到與保留區相同的牌會形成「明刻」</div>
     <div id="hand-area"></div>
     <div class="btn-group">
         <button id="form-set-btn" class="ctrl-btn">組牌鍵</button>
@@ -48,7 +48,7 @@
 
 <div id="dashboard">
     <div>保留區: <span id="r-count">0</span>/5</div>
-    <div>黑牌殘: <span id="b-num">0</span></div>
+    <div>蛇身黑牌: <span id="b-num">0</span></div>
 </div>
 
 <canvas id="gameCanvas" width="360" height="360"></canvas>
@@ -169,6 +169,16 @@ function update() {
 }
 
 function handleEat(newT) {
+    // 優先檢查：是否形成明刻 (槓)
+    for (let set of reserved) {
+        if (set.type === "刻子" && set.tiles[0].id === newT.id) {
+            set.tiles.push(newT);
+            set.type = "明刻"; // 升級為明刻
+            updateUI();
+            return;
+        }
+    }
+
     let found = false;
     for (let i = 0; i < snake.body.length; i++) {
         for (let j = i + 1; j < snake.body.length; j++) {
@@ -216,13 +226,15 @@ function drawTile(x, y, char, isRed, isHead) {
 function updateUI() {
     document.getElementById('r-count').innerText = reserved.length;
     document.getElementById('b-num').innerText = snake.body.filter(b => !b.isRed).length;
-    const kCount = reserved.filter(r => r.type === "刻子").length;
+    const kCount = reserved.filter(r => r.type === "刻子" || r.type === "明刻").length;
     document.getElementById('k-count').innerText = kCount;
     const area = document.getElementById('reserved-area'); area.innerHTML = '';
     reserved.forEach(s => {
         const d = document.createElement('div'); d.className='set-box';
         s.tiles.forEach(t => { const i = document.createElement('div'); i.className='tile'; i.innerText=t.char; d.appendChild(i); });
-        const tag = document.createElement('div'); tag.className='set-type-tag'; tag.innerText = s.type;
+        const tag = document.createElement('div'); tag.className='set-type-tag'; 
+        tag.innerText = s.type;
+        if(s.type === "明刻") tag.style.background = "#ffb703", tag.style.color = "#000";
         d.appendChild(tag);
         area.appendChild(d);
     });
@@ -233,7 +245,7 @@ function die(msg) { active = false; document.getElementById('m-title').innerText
 function calculateWin() {
     active = false;
     let tai = 1, list = ["底台 1台"];
-    const kCount = reserved.filter(r => r.type === "刻子").length;
+    const kCount = reserved.filter(r => r.type === "刻子" || r.type === "明刻").length;
     
     if (kCount >= 4) { list.push(`四刻成就 8台`); tai += 8; }
     else if (reserved.every(s => s.type === "順子")) { list.push("平胡 2台"); tai += 2; }
