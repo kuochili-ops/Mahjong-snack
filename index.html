@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 十六張專業理牌版</title>
+    <title>白六麻將貪食蛇 - 十七張正宗規則版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
-        #dashboard { width: 360px; display: flex; justify-content: space-between; padding: 10px 0; font-size: 14px; color: var(--gold); }
+        #dashboard { width: 360px; display: flex; justify-content: space-between; padding: 10px 0; font-size: 14px; font-weight: bold; color: var(--gold); }
         canvas { background: var(--board); border: 6px solid #4e342e; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         #ui-panel { width: 360px; margin-top: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px; border: 1px solid rgba(255,255,255,0.1); }
         .section-label { font-size: 12px; color: #81b29a; text-align: center; margin-bottom: 5px; }
@@ -15,17 +15,15 @@
         .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1px solid var(--gold); }
         .tile { width: 22px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 22px; margin: 0 1px; border-radius: 2px; background: #fff; box-shadow: 1px 1px 0 #ccc; color: #1d3557; padding-bottom: 5px; line-height: 1; }
         
-        /* 理牌遮罩介面 */
         #sorting-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #hand-area { display: flex; flex-wrap: wrap; width: 350px; gap: 4px; justify-content: center; margin-bottom: 30px; }
+        #hand-area { display: flex; flex-wrap: wrap; width: 350px; gap: 4px; justify-content: center; margin-bottom: 20px; }
         .hand-tile { width: 40px; height: 55px; background: #fff; color: #1d3557; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-size: 38px; cursor: pointer; border: 2px solid #ccc; padding-bottom: 6px; user-select: none; }
-        .hand-tile.selected { border: 3px solid var(--gold); background: #fffdf0; transform: translateY(-8px); box-shadow: 0 5px 15px rgba(255,183,3,0.3); }
+        .hand-tile.selected { border: 3px solid var(--gold); transform: translateY(-8px); box-shadow: 0 5px 15px rgba(255,183,3,0.3); }
         
-        .btn-group { display: flex; gap: 20px; }
-        .ctrl-btn { padding: 12px 25px; border: none; border-radius: 5px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
+        .btn-group { display: flex; gap: 15px; }
+        .ctrl-btn { padding: 12px 20px; border: none; border-radius: 5px; font-weight: bold; font-size: 16px; cursor: pointer; }
         #form-set-btn { background: #457b9d; color: white; }
         #start-game-btn { background: var(--gold); color: #000; }
-        .ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
         #controls { margin-top: 15px; display: flex; gap: 50px; }
         .btn { width: 80px; height: 80px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.3); color: white; font-size: 24px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; align-items: center; user-select: none; }
@@ -38,24 +36,24 @@
 <body>
 
 <div id="sorting-overlay">
-    <h2 style="color:var(--gold); margin-bottom:10px;">十六張理牌中</h2>
-    <div class="section-label" style="margin-bottom:20px;">點選三張符合 順子 或 刻子 的牌</div>
+    <h2 style="color:var(--gold); margin-bottom:5px;">開局理牌 (十七張)</h2>
+    <div class="section-label" style="margin-bottom:15px;">目標：組成 5 組牌 + 1 對將牌</div>
     <div id="hand-area"></div>
     <div class="btn-group">
         <button id="form-set-btn" class="ctrl-btn">組牌鍵</button>
-        <button id="start-game-btn" class="ctrl-btn">開始遊戲鍵</button>
+        <button id="start-game-btn" class="ctrl-btn">開始遊戲</button>
     </div>
 </div>
 
 <div id="dashboard">
     <div>黑牌數: <span id="b-num">0</span></div>
-    <div>蛇身長: <span id="s-len">0</span></div>
+    <div>蛇長: <span id="s-len">0</span></div>
 </div>
 
 <canvas id="gameCanvas" width="360" height="360"></canvas>
 
 <div id="ui-panel">
-    <div class="section-label">保留區 (已完成牌組)</div>
+    <div class="section-label">保留區 (合法牌組)</div>
     <div id="reserved-area"></div>
 </div>
 
@@ -68,43 +66,39 @@
     <h2 id="m-title">胡牌！</h2>
     <div id="tai-list" style="text-align:left; font-size:14px; margin:10px 0;"></div>
     <div id="tai-sum" style="color:var(--gold); font-size:22px; font-weight:bold;"></div>
-    <button onclick="location.reload()" style="margin-top:15px; padding: 10px 20px; background:var(--gold); border:none; border-radius:4px;">重玩一局</button>
+    <button onclick="location.reload()" style="margin-top:15px; padding: 10px 20px; background:var(--gold); border:none; border-radius:4px;">重玩</button>
 </div>
 
 <script>
 const MJ = (() => {
     const chars = ['🀇','🀈','🀉','🀊','🀋','🀌','🀍','🀎','🀏','🀙','🀚','🀛','🀜','🀝','🀞','🀟','🀠','🀡','🀐','🀑','🀒','🀓','🀔','🀕','🀖','🀗','🀘','🀀','🀁','🀂','🀃','🀄','🀅','🀆'];
-    const getT = (i) => ({ 
-        id: i, char: chars[i], 
-        suit: i < 27 ? Math.floor(i/9) : 3, 
-        val: i < 27 ? (i%9)+1 : (i-26) 
-    });
+    const getT = (i) => ({ id: i, char: chars[i], suit: i < 27 ? Math.floor(i/9) : 3, val: i < 27 ? (i%9)+1 : (i-26) });
     return {
         random: () => getT(Math.floor(Math.random()*chars.length)),
+        // 嚴格判定牌組
         isSet: (a, b, c) => {
-            if (a.id === b.id && b.id === c.id) return "刻子";
-            if (a.suit === b.suit && b.suit < 3) {
-                const v = [a.val, b.val, c.val].sort((x,y)=>x-y);
-                if (v[1] === v[0]+1 && v[2] === v[1]+1) return "順子";
+            const arr = [a, b, c].sort((x, y) => x.id - y.id);
+            // 刻子判定
+            if (arr[0].id === arr[1].id && arr[1].id === arr[2].id) return "刻子";
+            // 順子判定 (字牌無順子)
+            if (arr[0].suit === arr[1].suit && arr[1].suit === arr[2].suit && arr[0].suit < 3) {
+                if (arr[1].val === arr[0].val + 1 && arr[2].val === arr[1].val + 1) return "順子";
             }
             return null;
         },
         isPair: (a, b) => a.id === b.id,
-        sort: (list) => list.sort((a, b) => a.id - b.id) // 依ID排序即依花色排序
+        sort: (list) => list.sort((a, b) => a.id - b.id)
     };
 })();
 
 const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
-const TILE_SIZE = 28;
-const GAP_POINTS = 14;
 let snake = { x: 50, y: 180, dirIndex: 0, dirs: [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}], body: [], history: [] };
 let reserved = [], food = null, active = false, speed = 2.5, initialHand = [];
 let selectedItems = [];
 
-// 初始化 16 張牌並理牌
 function initSorting() {
-    for(let i=0; i<16; i++) initialHand.push(MJ.random());
+    for(let i=0; i<17; i++) initialHand.push(MJ.random());
     renderHand();
 }
 
@@ -113,7 +107,6 @@ function renderHand() {
     const handArea = document.getElementById('hand-area');
     handArea.innerHTML = '';
     selectedItems = [];
-    
     initialHand.forEach((t, idx) => {
         const div = document.createElement('div');
         div.className = 'hand-tile';
@@ -131,31 +124,25 @@ function renderHand() {
     });
 }
 
-// 組牌鍵邏輯
 document.getElementById('form-set-btn').onclick = () => {
-    if(selectedItems.length !== 3) {
-        alert("請先選取三張牌");
-        return;
-    }
+    if(selectedItems.length !== 3) return alert("請選取三張牌");
     const type = MJ.isSet(selectedItems[0].t, selectedItems[1].t, selectedItems[2].t);
     if(type) {
         reserved.push(selectedItems.map(s => s.t));
-        const indicesToRemove = selectedItems.map(s => s.idx).sort((a,b)=>b-a);
-        indicesToRemove.forEach(i => initialHand.splice(i, 1));
+        const indices = selectedItems.map(s => s.idx).sort((a,b)=>b-a);
+        indices.forEach(i => initialHand.splice(i, 1));
         renderHand();
         updateUI();
     } else {
-        alert("不符合順子或刻子規則");
+        alert("不符合順子或刻子規則！");
         selectedItems.forEach(s => s.div.classList.remove('selected'));
         selectedItems = [];
     }
 };
 
-// 開始遊戲鍵邏輯
 document.getElementById('start-game-btn').onclick = () => {
     document.getElementById('sorting-overlay').style.display = 'none';
     snake.body = initialHand.map(t => ({t, isRed: false}));
-    // 蛇體初始路徑：從左側進場
     for(let i=0; i<500; i++) snake.history.push({x: 50 - i*speed, y: 180});
     active = true;
     genFood();
@@ -173,7 +160,7 @@ function update() {
     snake.history.unshift({x: snake.x, y: snake.y});
     if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("撞牆了！");
     for (let i = 2; i < snake.body.length; i++) {
-        const p = snake.history[i * GAP_POINTS];
+        const p = snake.history[i * 14];
         if (p && Math.sqrt((snake.x-p.x)**2 + (snake.y-p.y)**2) < 18) return die("咬到自己了！");
     }
     if (Math.sqrt((snake.x-food.x)**2 + (snake.y-food.y)**2) < 22) {
@@ -197,19 +184,19 @@ function handleEat(newT) {
     }
     if (!found) snake.body.unshift({ t: newT, isRed: true });
     updateUI();
+    
+    // 胡牌檢查：5組牌(保留區) + 1對將牌(蛇身黑牌)
     const blacks = snake.body.filter(b => !b.isRed);
-    if (blacks.length === 2 && MJ.isPair(blacks[0].t, blacks[1].t)) calculateWin();
+    if (reserved.length === 5 && blacks.length === 2 && MJ.isPair(blacks[0].t, blacks[1].t)) {
+        calculateWin();
+    }
 }
 
 function draw() {
     ctx.clearRect(0,0,360,360);
-    // 背景裝飾
-    ctx.strokeStyle = "rgba(255,255,255,0.03)";
-    for(let i=0; i<=360; i+=30){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke(); }
-    
     drawTile(food.x, food.y, food.t.char, true, false);
     for (let i = snake.body.length - 1; i >= 0; i--) {
-        const p = snake.history[i * GAP_POINTS];
+        const p = snake.history[i * 14];
         if(p) drawTile(p.x, p.y, snake.body[i].t.char, snake.body[i].isRed, i === 0);
     }
 }
@@ -238,11 +225,11 @@ function die(msg) { active = false; document.getElementById('m-title').innerText
 
 function calculateWin() {
     active = false;
-    let tai = 1, list = ["底台 1台"]; 
-    const isPinfu = reserved.every(s => s[0].id !== s[1].id);
+    let tai = 1, list = ["底台 1台"];
+    const isPinfu = reserved.every(s => MJ.isSet(s[0], s[1], s[2]) === "順子");
     if(isPinfu) { tai += 2; list.push("平胡 2台"); }
     if(snake.body.length === 2) { tai += 2; list.push("全求人 2台"); }
-
+    
     document.getElementById('tai-list').innerHTML = list.map(l => `<div>${l}</div>`).join('');
     document.getElementById('tai-sum').innerText = `總計: ${tai} 台`;
     document.getElementById('modal').style.display = 'block';
