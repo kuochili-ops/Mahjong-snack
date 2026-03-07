@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 修正顯示版</title>
+    <title>白六麻將貪食蛇 - 黑牌保留邏輯版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; --purple: #9d4edd; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
@@ -33,8 +33,8 @@
 <body>
 
 <div id="sorting-overlay">
-    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 真實牌數版 (17張)</h2>
-    <div class="section-label" style="margin-bottom:15px;">請先從手牌選出組好的牌組（順子/刻子/暗槓）</div>
+    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 黑牌保留機制修正</h2>
+    <div class="section-label" style="margin-bottom:15px;">含黑牌之組合將移入保留區</div>
     <div id="hand-area"></div>
     <div id="status-tip" style="color:var(--gold); font-size:14px; min-height:20px;"></div>
     <div class="btn-group" style="margin-top:20px;">
@@ -52,7 +52,7 @@
 <canvas id="gameCanvas" width="360" height="360"></canvas>
 
 <div id="ui-panel">
-    <div class="section-label">保留區</div>
+    <div class="section-label">保留區 (含黑即入)</div>
     <div id="reserved-area"></div>
 </div>
 
@@ -148,17 +148,10 @@ document.getElementById('form-set-btn').onclick = () => {
 
 document.getElementById('start-game-btn').onclick = () => {
     document.getElementById('sorting-overlay').style.display = 'none';
-    
-    // 初始化蛇身：剩下的黑牌組成身體
     snake.body = initialHand.map(t => ({t, isRed: false}));
-    
-    // 核心修正：初始化歷史軌跡，確保蛇身有座標可以跟隨
     snake.x = 180; snake.y = 180;
     snake.history = [];
-    for(let i=0; i < 500; i++) {
-        snake.history.push({x: 180 - (i * speed), y: 180});
-    }
-    
+    for(let i=0; i < 500; i++) snake.history.push({x: 180 - (i * speed), y: 180});
     active = true;
     genFood();
     updateUI();
@@ -166,29 +159,18 @@ document.getElementById('start-game-btn').onclick = () => {
 };
 
 function genFood() { food = { x: 40 + Math.random()*280, y: 40 + Math.random()*280, t: MJ.draw() }; }
-
-function gameLoop() { 
-    if(!active) return; 
-    update(); 
-    draw(); 
-    requestAnimationFrame(gameLoop); 
-}
+function gameLoop() { if(!active) return; update(); draw(); requestAnimationFrame(gameLoop); }
 
 function update() {
     const d = snake.dirs[snake.dirIndex];
-    snake.x += d.x * speed;
-    snake.y += d.y * speed;
+    snake.x += d.x * speed; snake.y += d.y * speed;
     snake.history.unshift({x: snake.x, y: snake.y});
     if (snake.history.length > 1000) snake.history.pop();
-
     if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("撞牆了！");
-    
-    // 碰撞偵測（從第3節開始，避免咬到頭）
     for (let i = 3; i < snake.body.length; i++) {
         const p = snake.history[i * 14];
         if (p && Math.sqrt((snake.x-p.x)**2 + (snake.y-p.y)**2) < 12) return die("咬到自己了！");
     }
-
     if (food && Math.sqrt((snake.x-food.x)**2 + (snake.y-food.y)**2) < 22) {
         handleEat(food.t);
         genFood();
@@ -196,7 +178,7 @@ function update() {
 }
 
 function handleEat(newT) {
-    // 明刻偵測
+    // 1. 加槓/明刻優先 (不分顏色，只要ID對就吸進去)
     for (let set of reserved) {
         if ((set.type.includes("刻子") || set.type.includes("槓")) && set.tiles[0].id === newT.id) {
             if(set.tiles.length < 4) {
@@ -206,21 +188,40 @@ function handleEat(newT) {
             }
         }
     }
-    // 湊組偵測
+
+    // 2. 湊組判定
     let found = false;
     for (let i = 0; i < snake.body.length; i++) {
         for (let j = i + 1; j < snake.body.length; j++) {
-            const setType = MJ.isSet([newT, snake.body[i].t, snake.body[j].t]);
-            if (snake.body[i].isRed === snake.body[j].isRed && setType) {
-                if (!snake.body[i].isRed && reserved.length < 5) {
-                    reserved.push({tiles: [newT, snake.body[i].t, snake.body[j].t], type: setType});
+            const p1 = snake.body[i];
+            const p2 = snake.body[j];
+            const setType = MJ.isSet([newT, p1.t, p2.t]);
+            
+            if (setType) {
+                // 檢查是否含有黑牌 (新吃的 newT 是紅牌，所以看蛇身 p1, p2)
+                // 規則：只要三張裡有任何一張是黑牌，就移入保留區
+                // 這裡 newT 永遠是紅牌（剛吃的），所以只要 p1 或 p2 有黑牌就成立
+                const hasBlack = (!p1.isRed || !p2.isRed); 
+
+                if (hasBlack && reserved.length < 5) {
+                    // 移入保留區，且統一顯示為「黑牌組」
+                    reserved.push({tiles: [newT, p1.t, p2.t], type: setType});
+                    snake.body.splice(j, 1);
+                    snake.body.splice(i, 1);
+                    found = true;
+                    break;
+                } else if (!hasBlack) {
+                    // 三張都是紅牌 (newT 是紅的，p1, p2 也是紅的) -> 直接消除
+                    snake.body.splice(j, 1);
+                    snake.body.splice(i, 1);
+                    found = true;
+                    break;
                 }
-                snake.body.splice(j, 1); snake.body.splice(i, 1);
-                found = true; break;
             }
         }
         if (found) break;
     }
+    
     if (!found) snake.body.unshift({ t: newT, isRed: true });
     updateUI();
     
@@ -230,13 +231,9 @@ function handleEat(newT) {
 
 function draw() {
     ctx.clearRect(0,0,360,360);
-    // 繪製格線
     ctx.strokeStyle = "rgba(255,255,255,0.05)";
     for(let i=0; i<=360; i+=30) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke(); }
-
     if(food) drawTile(food.x, food.y, food.t.char, true, false);
-    
-    // 從尾巴往頭畫，頭在最上面
     for (let i = snake.body.length - 1; i >= 0; i--) {
         const p = snake.history[i * 14];
         if(p) drawTile(p.x, p.y, snake.body[i].t.char, snake.body[i].isRed, i === 0);
@@ -268,7 +265,6 @@ function updateUI() {
 }
 
 function die(msg) { active = false; document.getElementById('m-title').innerText = msg; document.getElementById('modal').style.display = 'block'; }
-
 function calculateWin() {
     active = false;
     let tai = 1, list = ["底台 1 台"];
