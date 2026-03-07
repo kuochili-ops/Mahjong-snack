@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 十七張正宗規則版</title>
+    <title>白六麻將貪食蛇 - 十七張正宗胡牌版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
@@ -37,7 +37,7 @@
 
 <div id="sorting-overlay">
     <h2 style="color:var(--gold); margin-bottom:5px;">開局理牌 (十七張)</h2>
-    <div class="section-label" style="margin-bottom:15px;">目標：組成 5 組牌 + 1 對將牌</div>
+    <div class="section-label" style="margin-bottom:15px;">先將順子/刻子送入保留區，湊滿 5 組 + 1 對將即可胡牌</div>
     <div id="hand-area"></div>
     <div class="btn-group">
         <button id="form-set-btn" class="ctrl-btn">組牌鍵</button>
@@ -46,14 +46,14 @@
 </div>
 
 <div id="dashboard">
-    <div>黑牌數: <span id="b-num">0</span></div>
-    <div>蛇長: <span id="s-len">0</span></div>
+    <div>保留區進度: <span id="r-count">0</span> / 5</div>
+    <div>蛇身黑牌: <span id="b-num">0</span></div>
 </div>
 
 <canvas id="gameCanvas" width="360" height="360"></canvas>
 
 <div id="ui-panel">
-    <div class="section-label">保留區 (合法牌組)</div>
+    <div class="section-label">保留區 (已完成黑牌組)</div>
     <div id="reserved-area"></div>
 </div>
 
@@ -75,12 +75,9 @@ const MJ = (() => {
     const getT = (i) => ({ id: i, char: chars[i], suit: i < 27 ? Math.floor(i/9) : 3, val: i < 27 ? (i%9)+1 : (i-26) });
     return {
         random: () => getT(Math.floor(Math.random()*chars.length)),
-        // 嚴格判定牌組
         isSet: (a, b, c) => {
             const arr = [a, b, c].sort((x, y) => x.id - y.id);
-            // 刻子判定
             if (arr[0].id === arr[1].id && arr[1].id === arr[2].id) return "刻子";
-            // 順子判定 (字牌無順子)
             if (arr[0].suit === arr[1].suit && arr[1].suit === arr[2].suit && arr[0].suit < 3) {
                 if (arr[1].val === arr[0].val + 1 && arr[2].val === arr[1].val + 1) return "順子";
             }
@@ -128,6 +125,7 @@ document.getElementById('form-set-btn').onclick = () => {
     if(selectedItems.length !== 3) return alert("請選取三張牌");
     const type = MJ.isSet(selectedItems[0].t, selectedItems[1].t, selectedItems[2].t);
     if(type) {
+        if(reserved.length >= 5) return alert("保留區已滿 5 組！請開始遊戲完成最後的將牌。");
         reserved.push(selectedItems.map(s => s.t));
         const indices = selectedItems.map(s => s.idx).sort((a,b)=>b-a);
         indices.forEach(i => initialHand.splice(i, 1));
@@ -175,9 +173,15 @@ function handleEat(newT) {
         for (let j = i + 1; j < snake.body.length; j++) {
             const p1 = snake.body[i], p2 = snake.body[j];
             if (p1.isRed === p2.isRed && MJ.isSet(newT, p1.t, p2.t)) {
-                if (!p1.isRed) reserved.push([newT, p1.t, p2.t]);
-                snake.body.splice(j, 1); snake.body.splice(i, 1);
-                found = true; break;
+                // 如果是黑牌組且保留區未滿 5 組，才送入保留區
+                if (!p1.isRed && reserved.length < 5) {
+                    reserved.push([newT, p1.t, p2.t]);
+                }
+                // 紅牌組或多餘的黑牌組則直接抵消消失
+                snake.body.splice(j, 1); 
+                snake.body.splice(i, 1);
+                found = true; 
+                break;
             }
         }
         if (found) break;
@@ -185,7 +189,7 @@ function handleEat(newT) {
     if (!found) snake.body.unshift({ t: newT, isRed: true });
     updateUI();
     
-    // 胡牌檢查：5組牌(保留區) + 1對將牌(蛇身黑牌)
+    // 核心胡牌條件檢查：保留區滿 5 組，蛇身剩餘黑牌為 1 對將
     const blacks = snake.body.filter(b => !b.isRed);
     if (reserved.length === 5 && blacks.length === 2 && MJ.isPair(blacks[0].t, blacks[1].t)) {
         calculateWin();
@@ -211,8 +215,8 @@ function drawTile(x, y, char, isRed, isHead) {
 }
 
 function updateUI() {
+    document.getElementById('r-count').innerText = reserved.length;
     document.getElementById('b-num').innerText = snake.body.filter(b => !b.isRed).length;
-    document.getElementById('s-len').innerText = snake.body.length;
     const area = document.getElementById('reserved-area'); area.innerHTML = '';
     reserved.forEach(s => {
         const d = document.createElement('div'); d.className='set-box';
