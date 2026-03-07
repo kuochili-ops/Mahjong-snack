@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 終極規則版</title>
+    <title>白六麻將貪食蛇 - 動態聽牌判定版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; --purple: #9d4edd; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
@@ -33,8 +33,8 @@
 <body>
 
 <div id="sorting-overlay">
-    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 終極麻將貪食蛇</h2>
-    <div class="section-label" style="margin-bottom:15px;">開局配牌：請選出 3-4 張成組的牌</div>
+    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 動態聽牌判定版</h2>
+    <div class="section-label" style="margin-bottom:15px;">五組完成後，隨時檢查一黑一紅對子</div>
     <div id="hand-area"></div>
     <div class="btn-group" style="margin-top:20px;">
         <button id="form-set-btn" class="ctrl-btn">組成牌組</button>
@@ -44,14 +44,14 @@
 
 <div id="dashboard">
     <div>牌池: <span id="pool-num">136</span></div>
-    <div>保留: <span id="r-count">0</span>/5</div>
-    <div>聽牌: <span id="listen-status">待定</span></div>
+    <div>保留: <span id="r-count">0</span>/5組</div>
+    <div>聽牌: <span id="listen-status">湊組中</span></div>
 </div>
 
 <canvas id="gameCanvas" width="360" height="360"></canvas>
 
 <div id="ui-panel">
-    <div class="section-label">保留區 (滿5組可胡牌)</div>
+    <div class="section-label">保留區 (滿5組開啟聽牌)</div>
     <div id="reserved-area"></div>
 </div>
 
@@ -166,14 +166,18 @@ function update() {
     snake.x += d.x * speed; snake.y += d.y * speed;
     snake.history.unshift({x: snake.x, y: snake.y});
     if (snake.history.length > 1000) snake.history.pop();
-    if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("出界了！");
-    for (let i = 4; i < snake.body.length; i++) {
-        const p = snake.history[i * 14];
-        if (p && Math.sqrt((snake.x-p.x)**2 + (snake.y-p.y)**2) < 10) return die("撞到自己了！");
-    }
+
     if (food && Math.sqrt((snake.x-food.x)**2 + (snake.y-food.y)**2) < 22) {
         handleEat(food.t);
         genFood();
+        if (!active) return;
+    }
+
+    if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("出界了！");
+
+    for (let i = 4; i < snake.body.length; i++) {
+        const p = snake.history[i * 14];
+        if (p && Math.sqrt((snake.x-p.x)**2 + (snake.y-p.y)**2) < 10) return die("撞到自己了！");
     }
 }
 
@@ -189,8 +193,8 @@ function handleEat(newT) {
         }
     }
 
-    // 2. 湊組判定
-    let found = false;
+    // 2. 湊組判定 (黑牌混合保留 / 純紅消除)
+    let foundSet = false;
     for (let i = 0; i < snake.body.length; i++) {
         for (let j = i + 1; j < snake.body.length; j++) {
             const p1 = snake.body[i];
@@ -202,27 +206,39 @@ function handleEat(newT) {
                 if (hasBlack && reserved.length < 5) {
                     reserved.push({tiles: [newT, p1.t, p2.t], type: setType});
                     snake.body.splice(j, 1); snake.body.splice(i, 1);
-                    found = true; break;
+                    foundSet = true; break;
                 } else if (!hasBlack) {
-                    // 純紅三張 -> 直接消除
                     snake.body.splice(j, 1); snake.body.splice(i, 1);
-                    found = true; break;
+                    foundSet = true; break;
                 }
             }
         }
-        if (found) break;
+        if (foundSet) break;
     }
     
-    // 3. 沒湊成組，則加入蛇頭 (紅牌)
-    if (!found) snake.body.unshift({ t: newT, isRed: true });
+    if (!foundSet) snake.body.unshift({ t: newT, isRed: true });
+    
+    // 3. 【核心修正】五組後的動態胡牌檢查
+    // 只要保留區滿了，就掃描蛇身是否有任何符合條件的對子
+    if (reserved.length === 5) {
+        for (let i = 0; i < snake.body.length; i++) {
+            for (let j = i + 1; j < snake.body.length; j++) {
+                const b1 = snake.body[i];
+                const b2 = snake.body[j];
+                
+                // 條件：ID 相同 (對子) 且 至少有一張黑牌
+                const hasAtLeastOneBlack = (!b1.isRed || !b2.isRed);
+                if (MJ.isPair(b1.t, b2.t) && hasAtLeastOneBlack) {
+                    // 為了胡牌畫面的美觀，我們將蛇身其餘雜牌清空，只留這一對
+                    snake.body = [b1, b2];
+                    updateUI();
+                    calculateWin();
+                    return;
+                }
+            }
+        }
+    }
     updateUI();
-    
-    // 4. 胡牌判定：5組 + 一對 (至少含一黑)
-    if (reserved.length === 5 && snake.body.length === 2) {
-        const b1 = snake.body[0], b2 = snake.body[1];
-        const hasBlack = (!b1.isRed || !b2.isRed);
-        if (MJ.isPair(b1.t, b2.t) && hasBlack) calculateWin();
-    }
 }
 
 function draw() {
@@ -249,12 +265,14 @@ function updateUI() {
     document.getElementById('pool-num').innerText = MJ.getPoolCount();
     document.getElementById('r-count').innerText = reserved.length;
     
-    // 聽牌偵測：如果保留區滿5組，且蛇身剩一張黑牌，提示聽牌
-    const blackCount = snake.body.filter(b => !b.isRed).length;
-    const listenStatus = (reserved.length === 5 && blackCount === 1) ? "聽牌中！" : (reserved.length === 5 ? "拼將牌" : "湊組中");
-    const statusEl = document.getElementById('listen-status');
-    statusEl.innerText = listenStatus;
-    statusEl.style.color = listenStatus === "聽牌中！" ? "#e63946" : "var(--gold)";
+    const listenStatusEl = document.getElementById('listen-status');
+    if (reserved.length === 5) {
+        listenStatusEl.innerText = "聽牌中：待對子";
+        listenStatusEl.style.color = "#e63946";
+    } else {
+        listenStatusEl.innerText = "湊組中";
+        listenStatusEl.style.color = "var(--gold)";
+    }
 
     const area = document.getElementById('reserved-area'); area.innerHTML = '';
     reserved.forEach(s => {
@@ -266,13 +284,14 @@ function updateUI() {
 }
 
 function die(msg) { active = false; document.getElementById('m-title').innerText = msg; document.getElementById('modal').style.display = 'block'; }
+
 function calculateWin() {
     active = false;
     let tai = 1, list = ["底台 1 台"];
     const kCount = reserved.filter(r => r.type.includes("刻子") || r.type.includes("槓")).length;
     if (kCount >= 5) { list.push("五暗刻 13 台"); tai += 13; }
     else if (kCount === 4) { list.push("四暗刻 8 台"); tai += 8; }
-    if (snake.body.length === 2) { list.push("全求人 2 台"); tai += 2; }
+    list.push("全求人 2 台"); tai += 2; // 因為最後只留對子胡牌，必得全求人
     document.getElementById('m-title').innerText = "🎉 恭喜胡牌！";
     document.getElementById('tai-list').innerHTML = list.map(l => `<div>• ${l}</div>`).join('');
     document.getElementById('tai-sum').innerText = `總計：${tai} 台`;
