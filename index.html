@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 動態聽牌判定版</title>
+    <title>白六麻將貪食蛇 - 倒數啟動版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; --purple: #9d4edd; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
@@ -28,13 +28,15 @@
         #l-btn { background: var(--blue); box-shadow: 0 5px 0 #1d3557; }
         #r-btn { background: var(--red); box-shadow: 0 5px 0 #941b24; }
         #modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); padding: 30px; border-radius: 15px; text-align: center; display: none; border: 2px solid var(--gold); z-index: 2000; width: 300px; }
+        /* 倒數計時樣式 */
+        #countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 120px; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px rgba(255,183,3,0.5); z-index: 1500; pointer-events: none; display: none; }
     </style>
 </head>
 <body>
 
 <div id="sorting-overlay">
-    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 動態聽牌判定版</h2>
-    <div class="section-label" style="margin-bottom:15px;">五組完成後，隨時檢查一黑一紅對子</div>
+    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 動態判定 + 倒數啟動</h2>
+    <div class="section-label" style="margin-bottom:15px;">完成五組後吃進對子即可胡牌</div>
     <div id="hand-area"></div>
     <div class="btn-group" style="margin-top:20px;">
         <button id="form-set-btn" class="ctrl-btn">組成牌組</button>
@@ -45,8 +47,10 @@
 <div id="dashboard">
     <div>牌池: <span id="pool-num">136</span></div>
     <div>保留: <span id="r-count">0</span>/5組</div>
-    <div>聽牌: <span id="listen-status">湊組中</span></div>
+    <div>狀態: <span id="listen-status">湊組中</span></div>
 </div>
+
+<div id="countdown-overlay">3</div>
 
 <canvas id="gameCanvas" width="360" height="360"></canvas>
 
@@ -102,7 +106,7 @@ const MJ = (() => {
 })();
 
 let snake = { x: 180, y: 180, dirIndex: 0, dirs: [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}], body: [], history: [] };
-let reserved = [], food = null, active = false, speed = 2.4, initialHand = [], selectedItems = [];
+let reserved = [], food = null, active = false, isCountingDown = false, speed = 2.4, initialHand = [], selectedItems = [];
 const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
 
@@ -146,20 +150,52 @@ document.getElementById('form-set-btn').onclick = () => {
     }
 };
 
+// 進入遊戲：啟動倒數
 document.getElementById('start-game-btn').onclick = () => {
     document.getElementById('sorting-overlay').style.display = 'none';
     snake.body = initialHand.map(t => ({t, isRed: false}));
     snake.x = 180; snake.y = 180;
     snake.history = [];
     for(let i=0; i < 600; i++) snake.history.push({x: 180 - (i * speed), y: 180});
-    active = true;
+    
     genFood();
     updateUI();
-    gameLoop();
+    startCountdown();
 };
 
+function startCountdown() {
+    const overlay = document.getElementById('countdown-overlay');
+    overlay.style.display = 'block';
+    isCountingDown = true;
+    let count = 3;
+    overlay.innerText = count;
+
+    // 啟動繪圖循環，但 update 邏輯暫停
+    requestAnimationFrame(gameLoop);
+
+    const timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+            overlay.innerText = count;
+        } else {
+            clearInterval(timer);
+            overlay.style.display = 'none';
+            isCountingDown = false;
+            active = true;
+        }
+    }, 1000);
+}
+
 function genFood() { food = { x: 40 + Math.random()*280, y: 40 + Math.random()*280, t: MJ.draw() }; }
-function gameLoop() { if(!active) return; update(); draw(); requestAnimationFrame(gameLoop); }
+
+function gameLoop() {
+    // 倒數時只畫不更新位移，遊戲結束則停止
+    if(!active && !isCountingDown) return; 
+    
+    if (active) update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
 
 function update() {
     const d = snake.dirs[snake.dirIndex];
@@ -182,7 +218,6 @@ function update() {
 }
 
 function handleEat(newT) {
-    // 1. 加槓/明刻優先
     for (let set of reserved) {
         if ((set.type.includes("刻子") || set.type.includes("槓")) && set.tiles[0].id === newT.id) {
             if(set.tiles.length < 4) {
@@ -193,7 +228,6 @@ function handleEat(newT) {
         }
     }
 
-    // 2. 湊組判定 (黑牌混合保留 / 純紅消除)
     let foundSet = false;
     for (let i = 0; i < snake.body.length; i++) {
         for (let j = i + 1; j < snake.body.length; j++) {
@@ -218,18 +252,14 @@ function handleEat(newT) {
     
     if (!foundSet) snake.body.unshift({ t: newT, isRed: true });
     
-    // 3. 【核心修正】五組後的動態胡牌檢查
-    // 只要保留區滿了，就掃描蛇身是否有任何符合條件的對子
+    // 五組後的動態胡牌檢查
     if (reserved.length === 5) {
         for (let i = 0; i < snake.body.length; i++) {
             for (let j = i + 1; j < snake.body.length; j++) {
                 const b1 = snake.body[i];
                 const b2 = snake.body[j];
-                
-                // 條件：ID 相同 (對子) 且 至少有一張黑牌
                 const hasAtLeastOneBlack = (!b1.isRed || !b2.isRed);
                 if (MJ.isPair(b1.t, b2.t) && hasAtLeastOneBlack) {
-                    // 為了胡牌畫面的美觀，我們將蛇身其餘雜牌清空，只留這一對
                     snake.body = [b1, b2];
                     updateUI();
                     calculateWin();
@@ -264,16 +294,14 @@ function drawTile(x, y, char, isRed, isHead) {
 function updateUI() {
     document.getElementById('pool-num').innerText = MJ.getPoolCount();
     document.getElementById('r-count').innerText = reserved.length;
-    
     const listenStatusEl = document.getElementById('listen-status');
     if (reserved.length === 5) {
-        listenStatusEl.innerText = "聽牌中：待對子";
+        listenStatusEl.innerText = "聽牌！待對子";
         listenStatusEl.style.color = "#e63946";
     } else {
         listenStatusEl.innerText = "湊組中";
         listenStatusEl.style.color = "var(--gold)";
     }
-
     const area = document.getElementById('reserved-area'); area.innerHTML = '';
     reserved.forEach(s => {
         const d = document.createElement('div'); d.className='set-box';
@@ -291,7 +319,7 @@ function calculateWin() {
     const kCount = reserved.filter(r => r.type.includes("刻子") || r.type.includes("槓")).length;
     if (kCount >= 5) { list.push("五暗刻 13 台"); tai += 13; }
     else if (kCount === 4) { list.push("四暗刻 8 台"); tai += 8; }
-    list.push("全求人 2 台"); tai += 2; // 因為最後只留對子胡牌，必得全求人
+    list.push("全求人 2 台"); tai += 2;
     document.getElementById('m-title').innerText = "🎉 恭喜胡牌！";
     document.getElementById('tai-list').innerHTML = list.map(l => `<div>• ${l}</div>`).join('');
     document.getElementById('tai-sum').innerText = `總計：${tai} 台`;
