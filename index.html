@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 倒數啟動版</title>
+    <title>白六麻將貪食蛇 - 終極算台版</title>
     <style>
-        :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; --purple: #9d4edd; }
+        :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
         #dashboard { width: 360px; display: flex; justify-content: space-between; padding: 10px 0; font-size: 13px; font-weight: bold; color: var(--gold); }
         canvas { background: var(--board); border: 6px solid #4e342e; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
@@ -28,15 +28,14 @@
         #l-btn { background: var(--blue); box-shadow: 0 5px 0 #1d3557; }
         #r-btn { background: var(--red); box-shadow: 0 5px 0 #941b24; }
         #modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); padding: 30px; border-radius: 15px; text-align: center; display: none; border: 2px solid var(--gold); z-index: 2000; width: 300px; }
-        /* 倒數計時樣式 */
         #countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 120px; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px rgba(255,183,3,0.5); z-index: 1500; pointer-events: none; display: none; }
     </style>
 </head>
 <body>
 
 <div id="sorting-overlay">
-    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 動態判定 + 倒數啟動</h2>
-    <div class="section-label" style="margin-bottom:15px;">完成五組後吃進對子即可胡牌</div>
+    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 白六麻將貪食蛇</h2>
+    <div class="section-label" style="margin-bottom:15px;">倒數開始、聽牌閃爍、字牌算台功能已就緒</div>
     <div id="hand-area"></div>
     <div class="btn-group" style="margin-top:20px;">
         <button id="form-set-btn" class="ctrl-btn">組成牌組</button>
@@ -51,11 +50,10 @@
 </div>
 
 <div id="countdown-overlay">3</div>
-
 <canvas id="gameCanvas" width="360" height="360"></canvas>
 
 <div id="ui-panel">
-    <div class="section-label">保留區 (滿5組開啟聽牌)</div>
+    <div class="section-label">保留區 (滿5組開啟聽牌偵測)</div>
     <div id="reserved-area"></div>
 </div>
 
@@ -66,7 +64,7 @@
 
 <div id="modal">
     <h2 id="m-title" style="color:var(--gold);">胡牌！</h2>
-    <div id="tai-list" style="text-align:left; font-size:15px; margin:15px 0;"></div>
+    <div id="tai-list" style="text-align:left; font-size:14px; margin:15px 0; max-height: 150px; overflow-y: auto;"></div>
     <div id="tai-sum" style="color:var(--gold); font-size:24px; font-weight:bold;"></div>
     <button onclick="location.reload()" style="margin-top:15px; padding: 10px 20px; background:var(--gold); border:none; border-radius:4px; font-weight:bold;">重玩</button>
 </div>
@@ -107,6 +105,7 @@ const MJ = (() => {
 
 let snake = { x: 180, y: 180, dirIndex: 0, dirs: [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}], body: [], history: [] };
 let reserved = [], food = null, active = false, isCountingDown = false, speed = 2.4, initialHand = [], selectedItems = [];
+let glowAlpha = 0, glowDir = 1; // 閃爍動畫參數
 const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
 
@@ -150,14 +149,12 @@ document.getElementById('form-set-btn').onclick = () => {
     }
 };
 
-// 進入遊戲：啟動倒數
 document.getElementById('start-game-btn').onclick = () => {
     document.getElementById('sorting-overlay').style.display = 'none';
     snake.body = initialHand.map(t => ({t, isRed: false}));
     snake.x = 180; snake.y = 180;
     snake.history = [];
     for(let i=0; i < 600; i++) snake.history.push({x: 180 - (i * speed), y: 180});
-    
     genFood();
     updateUI();
     startCountdown();
@@ -169,29 +166,18 @@ function startCountdown() {
     isCountingDown = true;
     let count = 3;
     overlay.innerText = count;
-
-    // 啟動繪圖循環，但 update 邏輯暫停
     requestAnimationFrame(gameLoop);
-
     const timer = setInterval(() => {
         count--;
-        if (count > 0) {
-            overlay.innerText = count;
-        } else {
-            clearInterval(timer);
-            overlay.style.display = 'none';
-            isCountingDown = false;
-            active = true;
-        }
+        if (count > 0) { overlay.innerText = count; }
+        else { clearInterval(timer); overlay.style.display = 'none'; isCountingDown = false; active = true; }
     }, 1000);
 }
 
 function genFood() { food = { x: 40 + Math.random()*280, y: 40 + Math.random()*280, t: MJ.draw() }; }
 
 function gameLoop() {
-    // 倒數時只畫不更新位移，遊戲結束則停止
     if(!active && !isCountingDown) return; 
-    
     if (active) update();
     draw();
     requestAnimationFrame(gameLoop);
@@ -210,11 +196,14 @@ function update() {
     }
 
     if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("出界了！");
-
     for (let i = 4; i < snake.body.length; i++) {
         const p = snake.history[i * 14];
         if (p && Math.sqrt((snake.x-p.x)**2 + (snake.y-p.y)**2) < 10) return die("撞到自己了！");
     }
+
+    // 更新聽牌閃爍動畫
+    glowAlpha += 0.05 * glowDir;
+    if (glowAlpha > 1 || glowAlpha < 0) glowDir *= -1;
 }
 
 function handleEat(newT) {
@@ -234,7 +223,6 @@ function handleEat(newT) {
             const p1 = snake.body[i];
             const p2 = snake.body[j];
             const setType = MJ.isSet([newT, p1.t, p2.t]);
-            
             if (setType) {
                 const hasBlack = (!p1.isRed || !p2.isRed); 
                 if (hasBlack && reserved.length < 5) {
@@ -252,18 +240,14 @@ function handleEat(newT) {
     
     if (!foundSet) snake.body.unshift({ t: newT, isRed: true });
     
-    // 五組後的動態胡牌檢查
+    // 動態胡牌檢查
     if (reserved.length === 5) {
         for (let i = 0; i < snake.body.length; i++) {
             for (let j = i + 1; j < snake.body.length; j++) {
-                const b1 = snake.body[i];
-                const b2 = snake.body[j];
-                const hasAtLeastOneBlack = (!b1.isRed || !b2.isRed);
-                if (MJ.isPair(b1.t, b2.t) && hasAtLeastOneBlack) {
-                    snake.body = [b1, b2];
-                    updateUI();
-                    calculateWin();
-                    return;
+                const b1 = snake.body[i], b2 = snake.body[j];
+                const atLeastOneBlack = (!b1.isRed || !b2.isRed);
+                if (MJ.isPair(b1.t, b2.t) && atLeastOneBlack) {
+                    snake.body = [b1, b2]; updateUI(); calculateWin(); return;
                 }
             }
         }
@@ -275,15 +259,29 @@ function draw() {
     ctx.clearRect(0,0,360,360);
     ctx.strokeStyle = "rgba(255,255,255,0.05)";
     for(let i=0; i<=360; i+=30) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke(); }
-    if(food) drawTile(food.x, food.y, food.t.char, true, false);
+    
+    // 繪製食物 (聽牌時閃爍特效)
+    let isWaitingFor = false;
+    if (reserved.length === 5) {
+        const blacks = snake.body.filter(b => !b.isRed);
+        if (blacks.some(b => b.t.id === food.t.id)) isWaitingFor = true;
+    }
+    drawTile(food.x, food.y, food.t.char, true, false, isWaitingFor);
+
     for (let i = snake.body.length - 1; i >= 0; i--) {
         const p = snake.history[i * 14];
-        if(p) drawTile(p.x, p.y, snake.body[i].t.char, snake.body[i].isRed, i === 0);
+        if(p) drawTile(p.x, p.y, snake.body[i].t.char, snake.body[i].isRed, i === 0, false);
     }
 }
 
-function drawTile(x, y, char, isRed, isHead) {
+function drawTile(x, y, char, isRed, isHead, isGlow) {
     ctx.save(); ctx.translate(x, y);
+    if (isGlow) {
+        ctx.shadowBlur = 15; ctx.shadowColor = "gold";
+        ctx.globalAlpha = 0.5 + (glowAlpha * 0.5);
+        ctx.fillStyle = "gold"; ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 6); ctx.fill();
+        ctx.globalAlpha = 1;
+    }
     ctx.fillStyle = isHead ? "#ffb703" : "#fff";
     ctx.beginPath(); ctx.roundRect(-14, -14, 28, 28, 4); ctx.fill();
     ctx.fillStyle = isRed ? "#e63946" : "#1d3557";
@@ -296,11 +294,9 @@ function updateUI() {
     document.getElementById('r-count').innerText = reserved.length;
     const listenStatusEl = document.getElementById('listen-status');
     if (reserved.length === 5) {
-        listenStatusEl.innerText = "聽牌！待對子";
-        listenStatusEl.style.color = "#e63946";
+        listenStatusEl.innerText = "聽牌中：待對子"; listenStatusEl.style.color = "#e63946";
     } else {
-        listenStatusEl.innerText = "湊組中";
-        listenStatusEl.style.color = "var(--gold)";
+        listenStatusEl.innerText = "湊組中"; listenStatusEl.style.color = "var(--gold)";
     }
     const area = document.getElementById('reserved-area'); area.innerHTML = '';
     reserved.forEach(s => {
@@ -311,14 +307,31 @@ function updateUI() {
     });
 }
 
-function die(msg) { active = false; document.getElementById('m-title').innerText = msg; document.getElementById('modal').style.display = 'block'; }
-
 function calculateWin() {
     active = false;
     let tai = 1, list = ["底台 1 台"];
-    const kCount = reserved.filter(r => r.type.includes("刻子") || r.type.includes("槓")).length;
-    if (kCount >= 5) { list.push("五暗刻 13 台"); tai += 13; }
+    const kSets = reserved.filter(r => r.type.includes("刻子") || r.type.includes("槓"));
+    const kCount = kSets.length;
+    const sCount = reserved.filter(r => r.type.includes("順子")).length;
+
+    // 1. 字牌刻子台數
+    let honors = 0;
+    kSets.forEach(s => { if (s.tiles[0].id >= 27) { honors++; list.push(`${s.tiles[0].char}刻 1 台`); tai += 1; }});
+
+    // 2. 特殊牌型
+    if (kCount === 5) { list.push("五暗刻 13 台"); tai += 13; }
     else if (kCount === 4) { list.push("四暗刻 8 台"); tai += 8; }
+    
+    // 3. 清一色判定
+    const allTiles = [...reserved.flatMap(r=>r.tiles), ...snake.body.map(b=>b.t)];
+    const suits = new Set(allTiles.filter(t=>t.suit<3).map(t=>t.suit));
+    const hasHonors = allTiles.some(t=>t.suit===3);
+    if (suits.size === 1 && !hasHonors) { list.push("清一色 10 台"); tai += 10; }
+    else if (suits.size === 1 && hasHonors) { list.push("混一色 4 台"); tai += 4; }
+
+    // 4. 平胡判定 (5順子 + 非字牌將)
+    if (sCount === 5 && snake.body[0].t.suit < 3) { list.push("平胡 2 台"); tai += 2; }
+
     list.push("全求人 2 台"); tai += 2;
     document.getElementById('m-title').innerText = "🎉 恭喜胡牌！";
     document.getElementById('tai-list').innerHTML = list.map(l => `<div>• ${l}</div>`).join('');
@@ -326,9 +339,9 @@ function calculateWin() {
     document.getElementById('modal').style.display = 'block';
 }
 
+function die(msg) { active = false; document.getElementById('m-title').innerText = msg; document.getElementById('modal').style.display = 'block'; }
 document.getElementById('l-btn').onclick = () => { snake.dirIndex = (snake.dirIndex + 3) % 4; };
 document.getElementById('r-btn').onclick = () => { snake.dirIndex = (snake.dirIndex + 1) % 4; };
-
 initSorting();
 </script>
 </body>
