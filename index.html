@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 碰撞修正版</title>
+    <title>白六麻將貪食蛇 - 精準慢速版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
@@ -35,7 +35,7 @@
 
 <div id="sorting-overlay">
     <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 白六麻將貪食蛇</h2>
-    <div class="section-label" style="margin-bottom:15px;">修正開局碰撞與完整算台邏輯</div>
+    <div class="section-label" style="margin-bottom:15px;">速度調降 (1.1) + 生存計時功能</div>
     <div id="hand-area"></div>
     <div class="btn-group" style="margin-top:20px;">
         <button id="form-set-btn" class="ctrl-btn">組成牌組</button>
@@ -45,6 +45,7 @@
 
 <div id="dashboard">
     <div>牌池: <span id="pool-num">136</span></div>
+    <div>時間: <span id="game-timer">00:00</span></div>
     <div>保留: <span id="r-count">0</span>/5組</div>
     <div>狀態: <span id="listen-status">湊組中</span></div>
 </div>
@@ -104,7 +105,10 @@ const MJ = (() => {
 })();
 
 let snake = { x: 180, y: 180, dirIndex: 0, dirs: [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}], body: [], history: [] };
-let reserved = [], food = null, active = false, isCountingDown = false, speed = 2.4, initialHand = [], selectedItems = [];
+let reserved = [], food = null, active = false, isCountingDown = false;
+let speed = 1.1; // 修正速度為 1.1
+let startTime = 0, elapsed = 0, timerInterval = null;
+let initialHand = [], selectedItems = [];
 let glowAlpha = 0, glowDir = 1, moveSteps = 0; 
 const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
@@ -154,8 +158,8 @@ document.getElementById('start-game-btn').onclick = () => {
     snake.body = initialHand.map(t => ({t, isRed: false}));
     snake.x = 180; snake.y = 180;
     snake.history = [];
-    // 預初始化平滑路徑
-    for(let i=0; i < 1000; i++) snake.history.push({x: 180 - (i * speed), y: 180});
+    // 預填歷史路徑，間隔需隨速度調整 (2.4時是14，1.1時建議設為 28 左右維持瓦片間距)
+    for(let i=0; i < 2000; i++) snake.history.push({x: 180 - (i * speed), y: 180});
     moveSteps = 0;
     genFood();
     updateUI();
@@ -172,7 +176,23 @@ function startCountdown() {
     const timer = setInterval(() => {
         count--;
         if (count > 0) { overlay.innerText = count; }
-        else { clearInterval(timer); overlay.style.display = 'none'; isCountingDown = false; active = true; }
+        else { 
+            clearInterval(timer); 
+            overlay.style.display = 'none'; 
+            isCountingDown = false; 
+            active = true;
+            startTimer(); // 開始計時
+        }
+    }, 1000);
+}
+
+function startTimer() {
+    startTime = Date.now();
+    timerInterval = setInterval(() => {
+        elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+        const s = (elapsed % 60).toString().padStart(2, '0');
+        document.getElementById('game-timer').innerText = `${m}:${s}`;
     }, 1000);
 }
 
@@ -189,35 +209,28 @@ function update() {
     const d = snake.dirs[snake.dirIndex];
     snake.x += d.x * speed; snake.y += d.y * speed;
     snake.history.unshift({x: snake.x, y: snake.y});
-    if (snake.history.length > 1000) snake.history.pop();
+    if (snake.history.length > 3000) snake.history.pop();
     moveSteps++;
 
-    // 1. 食物判定
     if (food && Math.sqrt((snake.x-food.x)**2 + (snake.y-food.y)**2) < 22) {
         handleEat(food.t);
         genFood();
         if (!active) return;
     }
 
-    // 2. 出界判定
-    if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("撞牆出界了！");
+    if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("撞牆了！");
 
-    // 3. 【核心修正】嚴格碰撞偵測
-    // 為了避免開局誤判，我們在 moveSteps > 20 (即蛇頭離開初始點一段距離) 後開始全面偵測
-    // 同時，我們避開緊鄰頭部的第 1-2 節 (索引 0-28)
-    if (moveSteps > 10) {
+    if (moveSteps > 20) {
+        const gap = 30; // 降低速度後，瓦片間的歷史記錄索引需拉大
         for (let i = 4; i < snake.body.length; i++) {
-            const posIndex = i * 14; 
-            const p = snake.history[posIndex];
+            const p = snake.history[i * gap];
             if (p) {
                 const dist = Math.sqrt((snake.x - p.x)**2 + (snake.y - p.y)**2);
-                // 只要蛇頭與身體座標重疊超過一半立即死亡
                 if (dist < 12) return die("撞到自己了！");
             }
         }
     }
 
-    // 聽牌閃爍動畫
     glowAlpha += 0.05 * glowDir;
     if (glowAlpha > 1 || glowAlpha < 0) glowDir *= -1;
 }
@@ -232,7 +245,6 @@ function handleEat(newT) {
             }
         }
     }
-
     let foundSet = false;
     for (let i = 0; i < snake.body.length; i++) {
         for (let j = i + 1; j < snake.body.length; j++) {
@@ -252,15 +264,12 @@ function handleEat(newT) {
         }
         if (foundSet) break;
     }
-    
     if (!foundSet) snake.body.unshift({ t: newT, isRed: true });
-    
     if (reserved.length === 5) {
         for (let i = 0; i < snake.body.length; i++) {
             for (let j = i + 1; j < snake.body.length; j++) {
                 const b1 = snake.body[i], b2 = snake.body[j];
-                const atLeastOneBlack = (!b1.isRed || !b2.isRed);
-                if (MJ.isPair(b1.t, b2.t) && atLeastOneBlack) {
+                if (MJ.isPair(b1.t, b2.t) && (!b1.isRed || !b2.isRed)) {
                     snake.body = [b1, b2]; updateUI(); calculateWin(); return;
                 }
             }
@@ -274,7 +283,6 @@ function draw() {
     ctx.strokeStyle = "rgba(255,255,255,0.05)";
     for(let i=0; i<=360; i+=30) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke(); }
     
-    // 聽牌閃爍
     let isWaitingFor = false;
     if (reserved.length === 5) {
         const blacks = snake.body.filter(b => !b.isRed);
@@ -282,8 +290,9 @@ function draw() {
     }
     drawTile(food.x, food.y, food.t.char, true, false, isWaitingFor);
 
+    const gap = 30; 
     for (let i = snake.body.length - 1; i >= 0; i--) {
-        const p = snake.history[i * 14];
+        const p = snake.history[i * gap];
         if(p) drawTile(p.x, p.y, snake.body[i].t.char, snake.body[i].isRed, i === 0, false);
     }
 }
@@ -308,7 +317,7 @@ function updateUI() {
     document.getElementById('r-count').innerText = reserved.length;
     const listenStatusEl = document.getElementById('listen-status');
     if (reserved.length === 5) {
-        listenStatusEl.innerText = "聽牌！待對子"; listenStatusEl.style.color = "#e63946";
+        listenStatusEl.innerText = "聽牌！"; listenStatusEl.style.color = "#e63946";
     } else {
         listenStatusEl.innerText = "湊組中"; listenStatusEl.style.color = "var(--gold)";
     }
@@ -322,7 +331,7 @@ function updateUI() {
 }
 
 function calculateWin() {
-    active = false;
+    stopGame();
     let tai = 1, list = ["底台 1 台"];
     const kSets = reserved.filter(r => r.type.includes("刻子") || r.type.includes("槓"));
     kSets.forEach(s => { if (s.tiles[0].id >= 27) { list.push(`${s.tiles[0].char}刻 1 台`); tai += 1; }});
@@ -340,9 +349,14 @@ function calculateWin() {
 }
 
 function die(msg) { 
-    active = false; 
+    stopGame(); 
     document.getElementById('m-title').innerText = "Game Over";
     showModal([msg], "0"); 
+}
+
+function stopGame() {
+    active = false;
+    clearInterval(timerInterval);
 }
 
 function showModal(list, total) {
