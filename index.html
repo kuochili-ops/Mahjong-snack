@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 精準慢速版</title>
+    <title>白六麻將貪食蛇 - 1.8 均衡版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
@@ -35,7 +35,7 @@
 
 <div id="sorting-overlay">
     <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 白六麻將貪食蛇</h2>
-    <div class="section-label" style="margin-bottom:15px;">速度調降 (1.1) + 生存計時功能</div>
+    <div class="section-label" style="margin-bottom:15px;">速度提升至 1.8 | 生存計時中</div>
     <div id="hand-area"></div>
     <div class="btn-group" style="margin-top:20px;">
         <button id="form-set-btn" class="ctrl-btn">組成牌組</button>
@@ -106,7 +106,8 @@ const MJ = (() => {
 
 let snake = { x: 180, y: 180, dirIndex: 0, dirs: [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}], body: [], history: [] };
 let reserved = [], food = null, active = false, isCountingDown = false;
-let speed = 1.1; // 修正速度為 1.1
+let speed = 1.8; // 更新速度為 1.8
+let bodyGap = 16; // 配合 1.8 速度的間距 (1.8 * 16 = 28.8px)
 let startTime = 0, elapsed = 0, timerInterval = null;
 let initialHand = [], selectedItems = [];
 let glowAlpha = 0, glowDir = 1, moveSteps = 0; 
@@ -158,7 +159,6 @@ document.getElementById('start-game-btn').onclick = () => {
     snake.body = initialHand.map(t => ({t, isRed: false}));
     snake.x = 180; snake.y = 180;
     snake.history = [];
-    // 預填歷史路徑，間隔需隨速度調整 (2.4時是14，1.1時建議設為 28 左右維持瓦片間距)
     for(let i=0; i < 2000; i++) snake.history.push({x: 180 - (i * speed), y: 180});
     moveSteps = 0;
     genFood();
@@ -181,7 +181,7 @@ function startCountdown() {
             overlay.style.display = 'none'; 
             isCountingDown = false; 
             active = true;
-            startTimer(); // 開始計時
+            startTimer(); 
         }
     }, 1000);
 }
@@ -218,12 +218,11 @@ function update() {
         if (!active) return;
     }
 
-    if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("撞牆了！");
+    if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("出界了！");
 
-    if (moveSteps > 20) {
-        const gap = 30; // 降低速度後，瓦片間的歷史記錄索引需拉大
+    if (moveSteps > 15) {
         for (let i = 4; i < snake.body.length; i++) {
-            const p = snake.history[i * gap];
+            const p = snake.history[i * bodyGap];
             if (p) {
                 const dist = Math.sqrt((snake.x - p.x)**2 + (snake.y - p.y)**2);
                 if (dist < 12) return die("撞到自己了！");
@@ -251,12 +250,11 @@ function handleEat(newT) {
             const p1 = snake.body[i], p2 = snake.body[j];
             const setType = MJ.isSet([newT, p1.t, p2.t]);
             if (setType) {
-                const hasBlack = (!p1.isRed || !p2.isRed); 
-                if (hasBlack && reserved.length < 5) {
+                if ((!p1.isRed || !p2.isRed) && reserved.length < 5) {
                     reserved.push({tiles: [newT, p1.t, p2.t], type: setType});
                     snake.body.splice(j, 1); snake.body.splice(i, 1);
                     foundSet = true; break;
-                } else if (!hasBlack) {
+                } else if (p1.isRed && p2.isRed) {
                     snake.body.splice(j, 1); snake.body.splice(i, 1);
                     foundSet = true; break;
                 }
@@ -265,6 +263,8 @@ function handleEat(newT) {
         if (foundSet) break;
     }
     if (!foundSet) snake.body.unshift({ t: newT, isRed: true });
+    
+    // 胡牌判斷
     if (reserved.length === 5) {
         for (let i = 0; i < snake.body.length; i++) {
             for (let j = i + 1; j < snake.body.length; j++) {
@@ -290,9 +290,8 @@ function draw() {
     }
     drawTile(food.x, food.y, food.t.char, true, false, isWaitingFor);
 
-    const gap = 30; 
     for (let i = snake.body.length - 1; i >= 0; i--) {
-        const p = snake.history[i * gap];
+        const p = snake.history[i * bodyGap];
         if(p) drawTile(p.x, p.y, snake.body[i].t.char, snake.body[i].isRed, i === 0, false);
     }
 }
@@ -348,17 +347,8 @@ function calculateWin() {
     showModal(list, tai);
 }
 
-function die(msg) { 
-    stopGame(); 
-    document.getElementById('m-title').innerText = "Game Over";
-    showModal([msg], "0"); 
-}
-
-function stopGame() {
-    active = false;
-    clearInterval(timerInterval);
-}
-
+function die(msg) { stopGame(); document.getElementById('m-title').innerText = "Game Over"; showModal([msg], "0"); }
+function stopGame() { active = false; clearInterval(timerInterval); }
 function showModal(list, total) {
     document.getElementById('tai-list').innerHTML = list.map(l => `<div>• ${l}</div>`).join('');
     document.getElementById('tai-sum').innerText = total > 0 ? `總計：${total} 台` : "";
