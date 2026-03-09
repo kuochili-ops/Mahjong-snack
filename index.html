@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 文字重心優化版</title>
+    <title>白六麻將貪食蛇 - 規則修正版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; padding-top: 10px; }
@@ -21,7 +21,6 @@
         
         .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1.5px solid var(--gold); position: relative; margin-bottom: 12px; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
         .set-type-tag { position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #fff; background: #333; padding: 0 4px; border-radius: 3px; border: 1px solid var(--gold); white-space: nowrap; z-index: 5; }
-        /* 保留區文字同步微調：減少 padding-bottom 以達到上移效果 */
         .tile { width: 22px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 24px; margin: 0 1px; border-radius: 2px; background: #fff; box-shadow: 1px 1px 0 #ccc; color: #1d3557; padding-bottom: 5px; line-height: 1; }
         
         #sorting-overlay { position: fixed; inset: 0; background: rgba(13, 17, 23, 0.98); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
@@ -105,6 +104,7 @@ let reserved = [], food = null, active = false, isCountingDown = false;
 let speed = 1.8, startTime = 0, timerInterval = null, elapsed = 0;
 let initialHand = [], selectedItems = [], glowAlpha = 0, glowDir = 1, moveSteps = 0;
 let gameOverMsg = null, isBreakingRecord = false;
+let gameStartedWithZeroReserved = false; // 用於判定全求人
 
 const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
@@ -113,7 +113,17 @@ function initSorting() { Records.display(); initialHand = []; for(let i=0; i<17;
 function renderHand() { MJ.sort(initialHand); const handArea = document.getElementById('hand-area'); handArea.innerHTML = ''; selectedItems = []; initialHand.forEach((t, idx) => { const div = document.createElement('div'); div.className = 'hand-tile'; div.innerText = t.char; div.onclick = () => { if(div.classList.contains('selected')) { div.classList.remove('selected'); selectedItems = selectedItems.filter(item => item.idx !== idx); } else if(selectedItems.length < 4) { div.classList.add('selected'); selectedItems.push({t, idx}); } }; handArea.appendChild(div); }); updateUI(); }
 
 document.getElementById('form-set-btn').onclick = () => { const tiles = selectedItems.map(s => s.t); const type = MJ.isSet(tiles); if(type && reserved.length < 5) { reserved.push({tiles: tiles, type: type}); const indices = selectedItems.map(s => s.idx).sort((a,b)=>b-a); indices.forEach(i => initialHand.splice(i, 1)); renderHand(); } };
-document.getElementById('start-game-btn').onclick = () => { document.getElementById('sorting-overlay').style.display = 'none'; snake.body = initialHand.map(t => ({t, isRed: false})); snake.x = 180; snake.y = 180; snake.history = []; for(let i=0; i < 3000; i++) snake.history.push({x: 180 - (i * 1.8), y: 180}); moveSteps = 0; genFood(); updateUI(); startCountdown(); };
+document.getElementById('start-game-btn').onclick = () => { 
+    document.getElementById('sorting-overlay').style.display = 'none'; 
+    // 【新規則紀錄】開局時保留區是否為空
+    gameStartedWithZeroReserved = (reserved.length === 0);
+    
+    snake.body = initialHand.map(t => ({t, isRed: false})); 
+    snake.x = 180; snake.y = 180; snake.history = []; 
+    for(let i=0; i < 3000; i++) snake.history.push({x: 180 - (i * 1.8), y: 180}); 
+    moveSteps = 0; genFood(); updateUI(); startCountdown(); 
+};
+
 function startCountdown() { const overlay = document.getElementById('countdown-overlay'); overlay.style.display = 'block'; isCountingDown = true; let count = 3; overlay.innerText = count; requestAnimationFrame(gameLoop); const timer = setInterval(() => { count--; if (count > 0) overlay.innerText = count; else { clearInterval(timer); overlay.style.display = 'none'; isCountingDown = false; active = true; startTime = Date.now(); startTimer(); } }, 1000); }
 function startTimer() { timerInterval = setInterval(() => { elapsed = Math.floor((Date.now() - startTime) / 1000); const timerEl = document.getElementById('game-timer'); timerEl.innerText = formatTime(elapsed); if (reserved.length === 5) { timerEl.style.color = "#ff0054"; timerEl.style.textShadow = "0 0 10px #ff0054"; } else if (reserved.length >= 4) timerEl.style.color = "#ff5400"; else if (reserved.length >= 1) timerEl.style.color = "#ccff00"; else timerEl.style.color = "#00f5d4"; }, 500); }
 function genFood() { food = { x: 40 + Math.random()*280, y: 40 + Math.random()*280, t: MJ.draw() }; }
@@ -155,9 +165,16 @@ function calculateTai() {
     list.push({ name: "底台", val: 1 }); total += 1;
     const kSets = reserved.filter(r => r.type === "刻子");
     kSets.forEach(s => { if (s.tiles[0].id >= 27) { list.push({ name: `刻子 (${s.tiles[0].char})`, val: 1 }); total += 1; } });
+    
     if (kSets.length === 5) { list.push({ name: "五刻胡 (大滿貫)", val: 13 }); total += 13; }
     else if (kSets.length === 4) { list.push({ name: "四刻胡", val: 8 }); total += 8; }
-    list.push({ name: "全求人", val: 2 }); total += 2;
+    
+    // 【新判定邏輯】只有開局沒送保留區才算全求人
+    if (gameStartedWithZeroReserved) {
+        list.push({ name: "全求人", val: 2 }); 
+        total += 2;
+    }
+    
     return { total, list };
 }
 
@@ -174,22 +191,11 @@ function endGame(title, isWin, tai = 0, manualBodyCount = null, taiList = []) {
 function draw() { ctx.clearRect(0,0,360,360); ctx.strokeStyle = "rgba(255,255,255,0.05)"; for(let i=0; i<=360; i+=30) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke(); } let isWaitingFor = false; if (reserved.length === 5 && food) { const blacks = snake.body.filter(b => !b.isRed); if (blacks.some(b => b.t.id === food.t.id)) isWaitingFor = true; } if(food) drawTile(food.x, food.y, food.t.char, true, false, isWaitingFor); const dynamicGap = Math.round(29 / speed); for (let i = snake.body.length - 1; i >= 0; i--) { const p = snake.history[i * dynamicGap]; if(p) drawTile(p.x, p.y, snake.body[i].t.char, snake.body[i].isRed, i === 0, false); } }
 
 function drawTile(x, y, char, isRed, isHead, isGlow) { 
-    ctx.save(); 
-    ctx.translate(x, y); 
-    if (isGlow) { 
-        ctx.shadowBlur = 15; ctx.shadowColor = "gold"; ctx.globalAlpha = 0.5 + (glowAlpha * 0.5); ctx.fillStyle = "gold"; ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 6); ctx.fill(); ctx.globalAlpha = 1; 
-    } 
-    ctx.fillStyle = isHead ? "#ffb703" : "#fff"; 
-    ctx.beginPath(); 
-    ctx.roundRect(-14, -14, 28, 28, 4); 
-    ctx.fill(); 
-
-    ctx.fillStyle = isRed ? "#e63946" : "#1d3557"; 
-    ctx.font = "bold 26px Arial, '微軟正黑體'"; 
-    ctx.textAlign = "center"; 
-    ctx.textBaseline = "middle"; 
-    // 【微調】將垂直偏移從 -1 改為 -3，讓文字重心上移
-    ctx.fillText(char, 0, -3); 
+    ctx.save(); ctx.translate(x, y); 
+    if (isGlow) { ctx.shadowBlur = 15; ctx.shadowColor = "gold"; ctx.globalAlpha = 0.5 + (glowAlpha * 0.5); ctx.fillStyle = "gold"; ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 6); ctx.fill(); ctx.globalAlpha = 1; } 
+    ctx.fillStyle = isHead ? "#ffb703" : "#fff"; ctx.beginPath(); ctx.roundRect(-14, -14, 28, 28, 4); ctx.fill(); 
+    ctx.fillStyle = isRed ? "#e63946" : "#1d3557"; ctx.font = "bold 26px Arial, '微軟正黑體'"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
+    ctx.fillText(char, 0, -3); // 維持文字重心上移設定
     ctx.restore(); 
 }
 
