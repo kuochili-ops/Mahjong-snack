@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 全紀錄挑戰版</title>
+    <title>白六麻將貪食蛇 - 成就達成版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; padding-top: 10px; }
         
-        /* 極簡紀錄顯示區 */
         #records-display { font-size: 11px; color: #81b29a; width: 360px; display: flex; flex-wrap: wrap; justify-content: space-around; margin-bottom: 5px; opacity: 0.8; line-height: 1.5; }
         #records-display div { margin: 0 5px; }
 
@@ -117,7 +116,6 @@ let gameOverMsg = null;
 const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
 
-// --- 紀錄系統 ---
 const Records = {
     get: () => JSON.parse(localStorage.getItem('snakeMJ_RecordsV2')) || { maxTai: 0, minTime: 9999, maxTime: 0, maxBody: 0 },
     save: (data) => localStorage.setItem('snakeMJ_RecordsV2', JSON.stringify(data)),
@@ -148,7 +146,6 @@ function formatTime(s) {
     return `${min}:${sec}`;
 }
 
-// --- 遊戲核心 ---
 function initSorting() {
     Records.display();
     initialHand = [];
@@ -317,8 +314,13 @@ function endGame(title, isWin, tai = 0) {
     active = false;
     clearInterval(timerInterval);
     const achieved = Records.update(tai, elapsed, snake.body.length, isWin);
+    
     let msg = title;
-    if (achieved.length > 0) msg += "\n破紀錄：" + achieved.join(", ");
+    // 【核心邏輯變更】只有破紀錄才顯示該項目
+    if (achieved.length > 0) {
+        msg += "\n破紀錄：" + achieved.join(", ");
+    }
+    
     msg += `\n本次蛇身長度：${snake.body.length} 張`;
     msg += "\n\n點擊畫面重玩";
     gameOverMsg = msg;
