@@ -3,9 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 規則修正版</title>
+    <title>白六麻將貪食蛇 - 操作優化版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
+        
+        /* 【新增】全局禁用選取與預覽選單，確保遊戲點擊流暢 */
+        * {
+            -webkit-user-select: none;  /* Safari/Chrome */
+            -moz-user-select: none;     /* Firefox */
+            -ms-user-select: none;      /* IE/Edge */
+            user-select: none;          /* Standard */
+            -webkit-touch-callout: none; /* 禁用 iOS 長按彈出選單 */
+            -webkit-tap-highlight-color: transparent; /* 移除點擊時的藍色高亮框 */
+        }
+
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; padding-top: 10px; }
         
         #records-display { font-size: 11px; color: #81b29a; width: 360px; display: flex; flex-wrap: wrap; justify-content: space-around; margin-bottom: 5px; opacity: 0.8; line-height: 1.5; }
@@ -25,14 +36,14 @@
         
         #sorting-overlay { position: fixed; inset: 0; background: rgba(13, 17, 23, 0.98); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
         #hand-area { display: flex; flex-wrap: wrap; width: 340px; gap: 5px; justify-content: center; margin-bottom: 25px; }
-        .hand-tile { width: 38px; height: 52px; background: #fff; color: #1d3557; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-size: 34px; cursor: pointer; border: 2px solid #ccc; padding-bottom: 8px; user-select: none; }
+        .hand-tile { width: 38px; height: 52px; background: #fff; color: #1d3557; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-size: 34px; cursor: pointer; border: 2px solid #ccc; padding-bottom: 8px; }
         .hand-tile.selected { border: 3px solid var(--gold); transform: translateY(-10px); }
-        .ctrl-btn { padding: 12px 25px; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; margin: 0 10px; }
+        .ctrl-btn { padding: 12px 25px; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; margin: 0 10px; outline: none; }
         #form-set-btn { background: var(--blue); color: white; }
         #start-game-btn { background: var(--gold); color: #000; }
 
         #controls { margin-top: 15px; display: flex; gap: 50px; }
-        .btn { width: 80px; height: 80px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.2); color: white; font-size: 32px; cursor: pointer; display: flex; justify-content: center; align-items: center; user-select: none; }
+        .btn { width: 80px; height: 80px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.2); color: white; font-size: 32px; cursor: pointer; display: flex; justify-content: center; align-items: center; outline: none; }
         #l-btn { background: var(--blue); box-shadow: 0 5px 0 #1d3557; }
         #r-btn { background: var(--red); box-shadow: 0 5px 0 #941b24; }
 
@@ -104,7 +115,7 @@ let reserved = [], food = null, active = false, isCountingDown = false;
 let speed = 1.8, startTime = 0, timerInterval = null, elapsed = 0;
 let initialHand = [], selectedItems = [], glowAlpha = 0, glowDir = 1, moveSteps = 0;
 let gameOverMsg = null, isBreakingRecord = false;
-let gameStartedWithZeroReserved = false; // 用於判定全求人
+let gameStartedWithZeroReserved = false;
 
 const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
@@ -115,9 +126,7 @@ function renderHand() { MJ.sort(initialHand); const handArea = document.getEleme
 document.getElementById('form-set-btn').onclick = () => { const tiles = selectedItems.map(s => s.t); const type = MJ.isSet(tiles); if(type && reserved.length < 5) { reserved.push({tiles: tiles, type: type}); const indices = selectedItems.map(s => s.idx).sort((a,b)=>b-a); indices.forEach(i => initialHand.splice(i, 1)); renderHand(); } };
 document.getElementById('start-game-btn').onclick = () => { 
     document.getElementById('sorting-overlay').style.display = 'none'; 
-    // 【新規則紀錄】開局時保留區是否為空
     gameStartedWithZeroReserved = (reserved.length === 0);
-    
     snake.body = initialHand.map(t => ({t, isRed: false})); 
     snake.x = 180; snake.y = 180; snake.history = []; 
     for(let i=0; i < 3000; i++) snake.history.push({x: 180 - (i * 1.8), y: 180}); 
@@ -165,16 +174,9 @@ function calculateTai() {
     list.push({ name: "底台", val: 1 }); total += 1;
     const kSets = reserved.filter(r => r.type === "刻子");
     kSets.forEach(s => { if (s.tiles[0].id >= 27) { list.push({ name: `刻子 (${s.tiles[0].char})`, val: 1 }); total += 1; } });
-    
     if (kSets.length === 5) { list.push({ name: "五刻胡 (大滿貫)", val: 13 }); total += 13; }
     else if (kSets.length === 4) { list.push({ name: "四刻胡", val: 8 }); total += 8; }
-    
-    // 【新判定邏輯】只有開局沒送保留區才算全求人
-    if (gameStartedWithZeroReserved) {
-        list.push({ name: "全求人", val: 2 }); 
-        total += 2;
-    }
-    
+    if (gameStartedWithZeroReserved) { list.push({ name: "全求人", val: 2 }); total += 2; }
     return { total, list };
 }
 
@@ -195,8 +197,7 @@ function drawTile(x, y, char, isRed, isHead, isGlow) {
     if (isGlow) { ctx.shadowBlur = 15; ctx.shadowColor = "gold"; ctx.globalAlpha = 0.5 + (glowAlpha * 0.5); ctx.fillStyle = "gold"; ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 6); ctx.fill(); ctx.globalAlpha = 1; } 
     ctx.fillStyle = isHead ? "#ffb703" : "#fff"; ctx.beginPath(); ctx.roundRect(-14, -14, 28, 28, 4); ctx.fill(); 
     ctx.fillStyle = isRed ? "#e63946" : "#1d3557"; ctx.font = "bold 26px Arial, '微軟正黑體'"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
-    ctx.fillText(char, 0, -3); // 維持文字重心上移設定
-    ctx.restore(); 
+    ctx.fillText(char, 0, -3); ctx.restore(); 
 }
 
 function drawEndMessage() {
@@ -210,8 +211,8 @@ function drawEndMessage() {
 
 function updateUI() { document.getElementById('pool-num').innerText = MJ.getPoolCount(); document.getElementById('r-count').innerText = reserved.length; const area = document.getElementById('reserved-area'); area.innerHTML = ''; reserved.forEach(s => { const d = document.createElement('div'); d.className='set-box'; s.tiles.forEach(t => { const i = document.createElement('div'); i.className='tile'; i.innerText=t.char; d.appendChild(i); }); const tag = document.createElement('div'); tag.className='set-type-tag'; tag.innerText = s.type; d.appendChild(tag); area.appendChild(d); }); }
 cvs.onclick = () => { if (gameOverMsg) location.reload(); };
-document.getElementById('l-btn').onclick = () => { snake.dirIndex = (snake.dirIndex + 3) % 4; };
-document.getElementById('r-btn').onclick = () => { snake.dirIndex = (snake.dirIndex + 1) % 4; };
+document.getElementById('l-btn').onclick = (e) => { e.preventDefault(); snake.dirIndex = (snake.dirIndex + 3) % 4; };
+document.getElementById('r-btn').onclick = (e) => { e.preventDefault(); snake.dirIndex = (snake.dirIndex + 1) % 4; };
 initSorting();
 </script>
 </body>
