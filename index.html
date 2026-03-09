@@ -3,22 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 成就紀錄版</title>
+    <title>白六麻將貪食蛇 - 極簡紀錄版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
-        body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
+        body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; padding-top: 10px; }
         
-        #dashboard { width: 360px; display: flex; justify-content: space-between; padding: 10px 0; font-size: 13px; font-weight: bold; }
-        #game-timer { transition: color 0.3s ease; font-size: 18px; text-shadow: 0 0 5px rgba(0,0,0,0.5); }
+        /* 極簡儀表板 */
+        #dashboard { width: 360px; display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 13px; font-weight: bold; background: transparent; border: none; }
+        #game-timer { transition: color 0.3s ease; font-size: 18px; text-shadow: 0 0 3px rgba(0,0,0,0.5); }
         
+        /* 畫布 */
         canvas { background: var(--board); border: 6px solid #4e342e; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
         
-        #ui-panel { width: 360px; margin-top: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px; border: 1px solid rgba(255,255,255,0.1); }
-        .section-label { font-size: 12px; color: #81b29a; text-align: center; margin-bottom: 5px; }
+        /* 極簡保留區 (移除黑底與邊框) */
+        #ui-panel { width: 360px; margin-top: 10px; background: transparent; border: none; padding: 0; }
         #reserved-area { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 45px; }
         
         /* 牌組與瓦片樣式 */
-        .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1.5px solid var(--gold); position: relative; margin-bottom: 12px; }
+        .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1.5px solid var(--gold); position: relative; margin-bottom: 12px; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
         .set-type-tag { position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #fff; background: #333; padding: 0 4px; border-radius: 3px; border: 1px solid var(--gold); white-space: nowrap; z-index: 5; }
         .tile { width: 22px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 20px; margin: 0 1px; border-radius: 2px; background: #fff; box-shadow: 1px 1px 0 #ccc; color: #1d3557; padding-bottom: 5px; line-height: 1; }
         
@@ -317,7 +319,7 @@ function calculateTai() {
     kSets.forEach(s => { if (s.tiles[0].id >= 27) tai += 1; });
     if (kSets.length === 5) tai += 13;
     else if (kSets.length === 4) tai += 8;
-    tai += 2; // 全求人
+    tai += 2; 
     return tai;
 }
 
@@ -326,7 +328,7 @@ function endGame(title, isWin, tai = 0) {
     clearInterval(timerInterval);
     const achieved = Records.update(tai, elapsed, isWin);
     let msg = title;
-    if (achieved.length > 0) msg += "\n恭喜破紀錄：" + achieved.join(", ");
+    if (achieved.length > 0) msg += "\n破紀錄：" + achieved.join(", ");
     msg += "\n\n點擊畫面重玩";
     gameOverMsg = msg;
 }
@@ -365,25 +367,30 @@ function drawTile(x, y, char, isRed, isHead, isGlow) {
     ctx.fillText(char, 0, -2); ctx.restore();
 }
 
+// 全新訊息顯示 (紅字白暈、移除背景)
 function drawEndMessage() {
     ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    
+    // 半透明背景層 (為了看清楚蛇身，只做極淡的遮罩)
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
     ctx.fillRect(0, 0, 360, 360);
     
-    ctx.font = "bold 24px 微軟正黑體";
+    ctx.font = "bold 24px 微軟正黑體, Microsoft JhengHei";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    
-    // 白色暈邊 (多層繪製模擬)
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 6;
-    ctx.lineJoin = "round";
     
     const lines = gameOverMsg.split('\n');
     lines.forEach((line, i) => {
         const py = 150 + i * 35;
+        
+        // 1. 繪製白色暈邊 (縮小範圍：lineWidth=3)
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 3; 
+        ctx.lineJoin = "round";
         ctx.strokeText(line, 180, py);
-        ctx.fillStyle = "yellow";
+        
+        // 2. 繪製紅色主文字
+        ctx.fillStyle = "#ff1744"; // 亮紅色
         ctx.fillText(line, 180, py);
     });
     ctx.restore();
