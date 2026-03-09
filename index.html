@@ -3,45 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 動態變速版</title>
+    <title>白六麻將貪食蛇 - 成就紀錄版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
-        body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
+        body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; }
+        
         #dashboard { width: 360px; display: flex; justify-content: space-between; padding: 10px 0; font-size: 13px; font-weight: bold; }
-        #game-timer { transition: color 0.3s ease; font-size: 16px; text-shadow: 0 0 5px rgba(0,0,0,0.5); }
-        canvas { background: var(--board); border: 6px solid #4e342e; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        #game-timer { transition: color 0.3s ease; font-size: 18px; text-shadow: 0 0 5px rgba(0,0,0,0.5); }
+        
+        canvas { background: var(--board); border: 6px solid #4e342e; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        
         #ui-panel { width: 360px; margin-top: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px; border: 1px solid rgba(255,255,255,0.1); }
         .section-label { font-size: 12px; color: #81b29a; text-align: center; margin-bottom: 5px; }
         #reserved-area { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 45px; }
+        
+        /* 牌組與瓦片樣式 */
         .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1.5px solid var(--gold); position: relative; margin-bottom: 12px; }
         .set-type-tag { position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #fff; background: #333; padding: 0 4px; border-radius: 3px; border: 1px solid var(--gold); white-space: nowrap; z-index: 5; }
         .tile { width: 22px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 20px; margin: 0 1px; border-radius: 2px; background: #fff; box-shadow: 1px 1px 0 #ccc; color: #1d3557; padding-bottom: 5px; line-height: 1; }
+        
+        /* 初始發牌畫面 */
         #sorting-overlay { position: fixed; inset: 0; background: rgba(13, 17, 23, 0.98); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
         #hand-area { display: flex; flex-wrap: wrap; width: 340px; gap: 5px; justify-content: center; margin-bottom: 25px; }
         .hand-tile { width: 38px; height: 52px; background: #fff; color: #1d3557; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-size: 34px; cursor: pointer; border: 2px solid #ccc; padding-bottom: 6px; user-select: none; }
         .hand-tile.selected { border: 3px solid var(--gold); transform: translateY(-10px); }
-        .btn-group { display: flex; gap: 15px; }
-        .ctrl-btn { padding: 12px 25px; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        .ctrl-btn { padding: 12px 25px; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; margin: 0 10px; }
         #form-set-btn { background: var(--blue); color: white; }
         #start-game-btn { background: var(--gold); color: #000; }
+
+        /* 控制按鈕 */
         #controls { margin-top: 15px; display: flex; gap: 50px; }
         .btn { width: 80px; height: 80px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.2); color: white; font-size: 32px; cursor: pointer; display: flex; justify-content: center; align-items: center; user-select: none; }
         #l-btn { background: var(--blue); box-shadow: 0 5px 0 #1d3557; }
         #r-btn { background: var(--red); box-shadow: 0 5px 0 #941b24; }
-        #modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); padding: 30px; border-radius: 15px; text-align: center; display: none; border: 2px solid var(--gold); z-index: 2000; width: 300px; }
+
+        /* 倒數計時 */
         #countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 120px; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px rgba(255,183,3,0.5); z-index: 1500; pointer-events: none; display: none; }
+        
+        /* 紀錄顯示區 */
+        #records-display { font-size: 11px; color: #81b29a; width: 360px; display: flex; justify-content: space-around; margin-bottom: 5px; opacity: 0.8; }
     </style>
 </head>
 <body>
 
 <div id="sorting-overlay">
     <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 白六麻將貪食蛇</h2>
-    <div class="section-label" style="margin-bottom:15px;">隨保留區增強速度 | 聽牌即進入極速模式</div>
     <div id="hand-area"></div>
-    <div class="btn-group" style="margin-top:20px;">
+    <div style="display:flex;">
         <button id="form-set-btn" class="ctrl-btn">組成牌組</button>
         <button id="start-game-btn" class="ctrl-btn">進入遊戲</button>
     </div>
+</div>
+
+<div id="records-display">
+    <div>最高台數: <span id="rec-tai">0</span></div>
+    <div>最短胡牌: <span id="rec-min">--:--</span></div>
+    <div>最久生存: <span id="rec-max">--:--</span></div>
 </div>
 
 <div id="dashboard">
@@ -54,20 +71,12 @@
 <canvas id="gameCanvas" width="360" height="360"></canvas>
 
 <div id="ui-panel">
-    <div class="section-label" id="listen-status">湊組階段：穩定佈局</div>
     <div id="reserved-area"></div>
 </div>
 
 <div id="controls">
     <div id="l-btn" class="btn">↺</div>
     <div id="r-btn" class="btn">↻</div>
-</div>
-
-<div id="modal">
-    <h2 id="m-title" style="color:var(--gold);">遊戲結束</h2>
-    <div id="tai-list" style="text-align:left; font-size:14px; margin:15px 0; max-height: 150px; overflow-y: auto;"></div>
-    <div id="tai-sum" style="color:var(--gold); font-size:24px; font-weight:bold;"></div>
-    <button onclick="location.reload()" style="margin-top:15px; padding: 10px 20px; background:var(--gold); border:none; border-radius:4px; font-weight:bold;">重玩</button>
 </div>
 
 <script>
@@ -94,8 +103,6 @@ const MJ = (() => {
                 if (arr[0].suit === arr[1].suit && arr[1].suit === arr[2].suit && arr[0].suit < 3) {
                     if (arr[1].val === arr[0].val + 1 && arr[2].val === arr[1].val + 1) return "順子";
                 }
-            } else if (arr.length === 4) {
-                if (arr.every(t => t.id === arr[0].id)) return "暗槓";
             }
             return null;
         },
@@ -106,12 +113,45 @@ const MJ = (() => {
 
 let snake = { x: 180, y: 180, dirIndex: 0, dirs: [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}], body: [], history: [] };
 let reserved = [], food = null, active = false, isCountingDown = false;
-let speed = 1.8, startTime = 0, timerInterval = null, moveSteps = 0;
-let initialHand = [], selectedItems = [], glowAlpha = 0, glowDir = 1;
+let speed = 1.8, startTime = 0, timerInterval = null, elapsed = 0;
+let initialHand = [], selectedItems = [], glowAlpha = 0, glowDir = 1, moveSteps = 0;
+let gameOverMsg = null; 
+
 const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
 
+// --- 紀錄系統 ---
+const Records = {
+    get: () => JSON.parse(localStorage.getItem('snakeMJ_Records')) || { maxTai: 0, minTime: 9999, maxTime: 0 },
+    save: (data) => localStorage.setItem('snakeMJ_Records', JSON.stringify(data)),
+    update: (tai, time, isWin) => {
+        let r = Records.get();
+        let achieved = [];
+        if (isWin) {
+            if (tai > r.maxTai) { r.maxTai = tai; achieved.push("最高台數"); }
+            if (time < r.minTime) { r.minTime = time; achieved.push("最短胡牌時間"); }
+        }
+        if (time > r.maxTime) { r.maxTime = time; achieved.push("最久生存時間"); }
+        Records.save(r);
+        return achieved;
+    },
+    display: () => {
+        const r = Records.get();
+        document.getElementById('rec-tai').innerText = r.maxTai;
+        document.getElementById('rec-min').innerText = r.minTime === 9999 ? "--:--" : formatTime(r.minTime);
+        document.getElementById('rec-max').innerText = r.maxTime === 0 ? "--:--" : formatTime(r.maxTime);
+    }
+};
+
+function formatTime(s) {
+    const min = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${min}:${sec}`;
+}
+
+// --- 遊戲邏輯 ---
 function initSorting() {
+    Records.display();
     initialHand = [];
     for(let i=0; i<17; i++) initialHand.push(MJ.draw());
     renderHand();
@@ -154,8 +194,7 @@ document.getElementById('form-set-btn').onclick = () => {
 document.getElementById('start-game-btn').onclick = () => {
     document.getElementById('sorting-overlay').style.display = 'none';
     snake.body = initialHand.map(t => ({t, isRed: false}));
-    snake.x = 180; snake.y = 180;
-    snake.history = [];
+    snake.x = 180; snake.y = 180; snake.history = [];
     for(let i=0; i < 3000; i++) snake.history.push({x: 180 - (i * 1.8), y: 180});
     moveSteps = 0;
     genFood();
@@ -186,43 +225,31 @@ function startCountdown() {
 
 function startTimer() {
     timerInterval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
-        const s = (elapsed % 60).toString().padStart(2, '0');
+        elapsed = Math.floor((Date.now() - startTime) / 1000);
         const timerEl = document.getElementById('game-timer');
-        timerEl.innerText = `${m}:${s}`;
+        timerEl.innerText = formatTime(elapsed);
         
-        // 根據保留區組數改變計時器顏色
         if (reserved.length === 5) {
-            timerEl.style.color = "#ff0054"; // 霓虹紅 (極速)
+            timerEl.style.color = "#ff0054";
             timerEl.style.textShadow = "0 0 10px #ff0054";
-        } else if (reserved.length >= 4) {
-            timerEl.style.color = "#ff5400"; // 橘紅 (加速)
-        } else if (reserved.length >= 1) {
-            timerEl.style.color = "#ccff00"; // 黃綠 (提升)
-        } else {
-            timerEl.style.color = "#00f5d4"; // 青色 (初始)
-        }
+        } else if (reserved.length >= 4) timerEl.style.color = "#ff5400";
+        else if (reserved.length >= 1) timerEl.style.color = "#ccff00";
+        else timerEl.style.color = "#00f5d4";
     }, 500);
 }
 
 function genFood() { food = { x: 40 + Math.random()*280, y: 40 + Math.random()*280, t: MJ.draw() }; }
 
 function gameLoop() {
-    if(!active && !isCountingDown) return; 
+    if(!active && !isCountingDown && !gameOverMsg) return; 
     if (active) update();
     draw();
+    if (gameOverMsg) drawEndMessage();
     requestAnimationFrame(gameLoop);
 }
 
 function update() {
-    // 動態速度計算
-    if (reserved.length === 5) {
-        speed = 2.4;
-    } else {
-        speed = 1.8 + (reserved.length * 0.12);
-    }
-
+    speed = (reserved.length === 5) ? 2.4 : 1.8 + (reserved.length * 0.12);
     const dynamicGap = Math.round(29 / speed);
     const d = snake.dirs[snake.dirIndex];
     snake.x += d.x * speed; snake.y += d.y * speed;
@@ -230,21 +257,17 @@ function update() {
     if (snake.history.length > 3000) snake.history.pop();
     moveSteps++;
 
-    if (food && Math.sqrt((snake.x-food.x)**2 + (food.y-snake.y)**2) < 22) {
+    if (food && Math.sqrt((snake.x-food.x)**2 + (snake.y-food.y)**2) < 22) {
         handleEat(food.t);
         genFood();
-        if (!active) return;
     }
 
-    if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return die("出界了！");
+    if(snake.x < 0 || snake.x > 360 || snake.y < 0 || snake.y > 360) return endGame("撞牆出局", false);
 
     if (moveSteps > 15) {
         for (let i = 4; i < snake.body.length; i++) {
             const p = snake.history[i * dynamicGap];
-            if (p) {
-                const dist = Math.sqrt((snake.x - p.x)**2 + (snake.y - p.y)**2);
-                if (dist < 12) return die("撞到自己了！");
-            }
+            if (p && Math.sqrt((snake.x - p.x)**2 + (snake.y - p.y)**2) < 12) return endGame("撞到自己", false);
         }
     }
 
@@ -253,26 +276,16 @@ function update() {
 }
 
 function handleEat(newT) {
-    for (let set of reserved) {
-        if ((set.type.includes("刻子") || set.type.includes("槓")) && set.tiles[0].id === newT.id) {
-            if(set.tiles.length < 4) {
-                set.tiles.push(newT);
-                set.type = "明刻 (槓)";
-                updateUI(); return;
-            }
-        }
-    }
     let foundSet = false;
     for (let i = 0; i < snake.body.length; i++) {
         for (let j = i + 1; j < snake.body.length; j++) {
-            const p1 = snake.body[i], p2 = snake.body[j];
-            const setType = MJ.isSet([newT, p1.t, p2.t]);
+            const setType = MJ.isSet([newT, snake.body[i].t, snake.body[j].t]);
             if (setType) {
-                if ((!p1.isRed || !p2.isRed) && reserved.length < 5) {
-                    reserved.push({tiles: [newT, p1.t, p2.t], type: setType});
+                if ((!snake.body[i].isRed || !snake.body[j].isRed) && reserved.length < 5) {
+                    reserved.push({tiles: [newT, snake.body[i].t, snake.body[j].t], type: setType});
                     snake.body.splice(j, 1); snake.body.splice(i, 1);
                     foundSet = true; break;
-                } else if (p1.isRed && p2.isRed) {
+                } else if (snake.body[i].isRed && snake.body[j].isRed) {
                     snake.body.splice(j, 1); snake.body.splice(i, 1);
                     foundSet = true; break;
                 }
@@ -287,12 +300,35 @@ function handleEat(newT) {
             for (let j = i + 1; j < snake.body.length; j++) {
                 const b1 = snake.body[i], b2 = snake.body[j];
                 if (MJ.isPair(b1.t, b2.t) && (!b1.isRed || !b2.isRed)) {
-                    snake.body = [b1, b2]; updateUI(); calculateWin(); return;
+                    snake.body = [b1, b2];
+                    const tai = calculateTai();
+                    endGame(`🎉 胡牌！ ${tai} 台`, true, tai);
+                    return;
                 }
             }
         }
     }
     updateUI();
+}
+
+function calculateTai() {
+    let tai = 1;
+    const kSets = reserved.filter(r => r.type === "刻子");
+    kSets.forEach(s => { if (s.tiles[0].id >= 27) tai += 1; });
+    if (kSets.length === 5) tai += 13;
+    else if (kSets.length === 4) tai += 8;
+    tai += 2; // 全求人
+    return tai;
+}
+
+function endGame(title, isWin, tai = 0) {
+    active = false;
+    clearInterval(timerInterval);
+    const achieved = Records.update(tai, elapsed, isWin);
+    let msg = title;
+    if (achieved.length > 0) msg += "\n恭喜破紀錄：" + achieved.join(", ");
+    msg += "\n\n點擊畫面重玩";
+    gameOverMsg = msg;
 }
 
 function draw() {
@@ -301,11 +337,11 @@ function draw() {
     for(let i=0; i<=360; i+=30) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke(); }
     
     let isWaitingFor = false;
-    if (reserved.length === 5) {
+    if (reserved.length === 5 && food) {
         const blacks = snake.body.filter(b => !b.isRed);
         if (blacks.some(b => b.t.id === food.t.id)) isWaitingFor = true;
     }
-    drawTile(food.x, food.y, food.t.char, true, false, isWaitingFor);
+    if(food) drawTile(food.x, food.y, food.t.char, true, false, isWaitingFor);
 
     const dynamicGap = Math.round(29 / speed);
     for (let i = snake.body.length - 1; i >= 0; i--) {
@@ -329,17 +365,33 @@ function drawTile(x, y, char, isRed, isHead, isGlow) {
     ctx.fillText(char, 0, -2); ctx.restore();
 }
 
+function drawEndMessage() {
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(0, 0, 360, 360);
+    
+    ctx.font = "bold 24px 微軟正黑體";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    // 白色暈邊 (多層繪製模擬)
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 6;
+    ctx.lineJoin = "round";
+    
+    const lines = gameOverMsg.split('\n');
+    lines.forEach((line, i) => {
+        const py = 150 + i * 35;
+        ctx.strokeText(line, 180, py);
+        ctx.fillStyle = "yellow";
+        ctx.fillText(line, 180, py);
+    });
+    ctx.restore();
+}
+
 function updateUI() {
     document.getElementById('pool-num').innerText = MJ.getPoolCount();
     document.getElementById('r-count').innerText = reserved.length;
-    const statusEl = document.getElementById('listen-status');
-    if (reserved.length === 5) {
-        statusEl.innerText = "🚨 聽牌階段：極速衝刺！";
-        statusEl.style.color = "#ff0054";
-    } else {
-        statusEl.innerText = `湊組階段：速度 ${speed.toFixed(2)}`;
-        statusEl.style.color = "#81b29a";
-    }
     const area = document.getElementById('reserved-area'); area.innerHTML = '';
     reserved.forEach(s => {
         const d = document.createElement('div'); d.className='set-box';
@@ -349,32 +401,7 @@ function updateUI() {
     });
 }
 
-function calculateWin() {
-    stopGame();
-    let tai = 1, list = ["底台 1 台"];
-    const kSets = reserved.filter(r => r.type.includes("刻子") || r.type.includes("槓"));
-    kSets.forEach(s => { if (s.tiles[0].id >= 27) { list.push(`${s.tiles[0].char}刻 1 台`); tai += 1; }});
-    if (kSets.length === 5) { list.push("五暗刻 13 台"); tai += 13; }
-    else if (kSets.length === 4) { list.push("四暗刻 8 台"); tai += 8; }
-    const allTiles = [...reserved.flatMap(r=>r.tiles), ...snake.body.map(b=>b.t)];
-    const suits = new Set(allTiles.filter(t=>t.suit<3).map(t=>t.suit));
-    const hasHonors = allTiles.some(t=>t.suit===3);
-    if (suits.size === 1 && !hasHonors) { list.push("清一色 10 台"); tai += 10; }
-    else if (suits.size === 1 && hasHonors) { list.push("混一色 4 台"); tai += 4; }
-    if (reserved.filter(r => r.type.includes("順子")).length === 5 && snake.body[0].t.suit < 3) { list.push("平胡 2 台"); tai += 2; }
-    list.push("全求人 2 台"); tai += 2;
-    document.getElementById('m-title').innerText = "🎉 恭喜胡牌！";
-    showModal(list, tai);
-}
-
-function die(msg) { stopGame(); document.getElementById('m-title').innerText = "Game Over"; showModal([msg], "0"); }
-function stopGame() { active = false; clearInterval(timerInterval); }
-function showModal(list, total) {
-    document.getElementById('tai-list').innerHTML = list.map(l => `<div>• ${l}</div>`).join('');
-    document.getElementById('tai-sum').innerText = total > 0 ? `總計：${total} 台` : "";
-    document.getElementById('modal').style.display = 'block';
-}
-
+cvs.onclick = () => { if (gameOverMsg) location.reload(); };
 document.getElementById('l-btn').onclick = () => { snake.dirIndex = (snake.dirIndex + 3) % 4; };
 document.getElementById('r-btn').onclick = () => { snake.dirIndex = (snake.dirIndex + 1) % 4; };
 initSorting();
