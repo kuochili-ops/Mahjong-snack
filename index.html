@@ -3,28 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 極簡紀錄版</title>
+    <title>白六麻將貪食蛇 - 全紀錄挑戰版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; padding-top: 10px; }
         
-        /* 極簡儀表板 */
-        #dashboard { width: 360px; display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 13px; font-weight: bold; background: transparent; border: none; }
+        /* 極簡紀錄顯示區 */
+        #records-display { font-size: 11px; color: #81b29a; width: 360px; display: flex; flex-wrap: wrap; justify-content: space-around; margin-bottom: 5px; opacity: 0.8; line-height: 1.5; }
+        #records-display div { margin: 0 5px; }
+
+        #dashboard { width: 360px; display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 13px; font-weight: bold; background: transparent; }
         #game-timer { transition: color 0.3s ease; font-size: 18px; text-shadow: 0 0 3px rgba(0,0,0,0.5); }
         
-        /* 畫布 */
         canvas { background: var(--board); border: 6px solid #4e342e; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
         
-        /* 極簡保留區 (移除黑底與邊框) */
         #ui-panel { width: 360px; margin-top: 10px; background: transparent; border: none; padding: 0; }
         #reserved-area { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 45px; }
         
-        /* 牌組與瓦片樣式 */
         .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1.5px solid var(--gold); position: relative; margin-bottom: 12px; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
         .set-type-tag { position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #fff; background: #333; padding: 0 4px; border-radius: 3px; border: 1px solid var(--gold); white-space: nowrap; z-index: 5; }
         .tile { width: 22px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 20px; margin: 0 1px; border-radius: 2px; background: #fff; box-shadow: 1px 1px 0 #ccc; color: #1d3557; padding-bottom: 5px; line-height: 1; }
         
-        /* 初始發牌畫面 */
         #sorting-overlay { position: fixed; inset: 0; background: rgba(13, 17, 23, 0.98); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
         #hand-area { display: flex; flex-wrap: wrap; width: 340px; gap: 5px; justify-content: center; margin-bottom: 25px; }
         .hand-tile { width: 38px; height: 52px; background: #fff; color: #1d3557; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-size: 34px; cursor: pointer; border: 2px solid #ccc; padding-bottom: 6px; user-select: none; }
@@ -33,17 +32,12 @@
         #form-set-btn { background: var(--blue); color: white; }
         #start-game-btn { background: var(--gold); color: #000; }
 
-        /* 控制按鈕 */
         #controls { margin-top: 15px; display: flex; gap: 50px; }
         .btn { width: 80px; height: 80px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.2); color: white; font-size: 32px; cursor: pointer; display: flex; justify-content: center; align-items: center; user-select: none; }
         #l-btn { background: var(--blue); box-shadow: 0 5px 0 #1d3557; }
         #r-btn { background: var(--red); box-shadow: 0 5px 0 #941b24; }
 
-        /* 倒數計時 */
         #countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 120px; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px rgba(255,183,3,0.5); z-index: 1500; pointer-events: none; display: none; }
-        
-        /* 紀錄顯示區 */
-        #records-display { font-size: 11px; color: #81b29a; width: 360px; display: flex; justify-content: space-around; margin-bottom: 5px; opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -61,6 +55,7 @@
     <div>最高台數: <span id="rec-tai">0</span></div>
     <div>最短胡牌: <span id="rec-min">--:--</span></div>
     <div>最久生存: <span id="rec-max">--:--</span></div>
+    <div>最長蛇身: <span id="rec-body">0</span> 張</div>
 </div>
 
 <div id="dashboard">
@@ -124,24 +119,26 @@ const ctx = cvs.getContext('2d');
 
 // --- 紀錄系統 ---
 const Records = {
-    get: () => JSON.parse(localStorage.getItem('snakeMJ_Records')) || { maxTai: 0, minTime: 9999, maxTime: 0 },
-    save: (data) => localStorage.setItem('snakeMJ_Records', JSON.stringify(data)),
-    update: (tai, time, isWin) => {
+    get: () => JSON.parse(localStorage.getItem('snakeMJ_RecordsV2')) || { maxTai: 0, minTime: 9999, maxTime: 0, maxBody: 0 },
+    save: (data) => localStorage.setItem('snakeMJ_RecordsV2', JSON.stringify(data)),
+    update: (tai, time, bodyCount, isWin) => {
         let r = Records.get();
         let achieved = [];
         if (isWin) {
-            if (tai > r.maxTai) { r.maxTai = tai; achieved.push("最高台數"); }
-            if (time < r.minTime) { r.minTime = time; achieved.push("最短胡牌時間"); }
+            if (tai > (r.maxTai || 0)) { r.maxTai = tai; achieved.push("最高台數"); }
+            if (time < (r.minTime || 9999)) { r.minTime = time; achieved.push("最短胡牌"); }
         }
-        if (time > r.maxTime) { r.maxTime = time; achieved.push("最久生存時間"); }
+        if (time > (r.maxTime || 0)) { r.maxTime = time; achieved.push("最久生存"); }
+        if (bodyCount > (r.maxBody || 0)) { r.maxBody = bodyCount; achieved.push("最長蛇身"); }
         Records.save(r);
         return achieved;
     },
     display: () => {
         const r = Records.get();
-        document.getElementById('rec-tai').innerText = r.maxTai;
+        document.getElementById('rec-tai').innerText = r.maxTai || 0;
         document.getElementById('rec-min').innerText = r.minTime === 9999 ? "--:--" : formatTime(r.minTime);
         document.getElementById('rec-max').innerText = r.maxTime === 0 ? "--:--" : formatTime(r.maxTime);
+        document.getElementById('rec-body').innerText = r.maxBody || 0;
     }
 };
 
@@ -151,7 +148,7 @@ function formatTime(s) {
     return `${min}:${sec}`;
 }
 
-// --- 遊戲邏輯 ---
+// --- 遊戲核心 ---
 function initSorting() {
     Records.display();
     initialHand = [];
@@ -213,14 +210,11 @@ function startCountdown() {
     requestAnimationFrame(gameLoop);
     const timer = setInterval(() => {
         count--;
-        if (count > 0) { overlay.innerText = count; }
+        if (count > 0) overlay.innerText = count;
         else { 
-            clearInterval(timer); 
-            overlay.style.display = 'none'; 
-            isCountingDown = false; 
-            active = true;
-            startTime = Date.now();
-            startTimer(); 
+            clearInterval(timer); overlay.style.display = 'none'; 
+            isCountingDown = false; active = true;
+            startTime = Date.now(); startTimer(); 
         }
     }, 1000);
 }
@@ -230,11 +224,8 @@ function startTimer() {
         elapsed = Math.floor((Date.now() - startTime) / 1000);
         const timerEl = document.getElementById('game-timer');
         timerEl.innerText = formatTime(elapsed);
-        
-        if (reserved.length === 5) {
-            timerEl.style.color = "#ff0054";
-            timerEl.style.textShadow = "0 0 10px #ff0054";
-        } else if (reserved.length >= 4) timerEl.style.color = "#ff5400";
+        if (reserved.length === 5) { timerEl.style.color = "#ff0054"; timerEl.style.textShadow = "0 0 10px #ff0054"; }
+        else if (reserved.length >= 4) timerEl.style.color = "#ff5400";
         else if (reserved.length >= 1) timerEl.style.color = "#ccff00";
         else timerEl.style.color = "#00f5d4";
     }, 500);
@@ -319,16 +310,16 @@ function calculateTai() {
     kSets.forEach(s => { if (s.tiles[0].id >= 27) tai += 1; });
     if (kSets.length === 5) tai += 13;
     else if (kSets.length === 4) tai += 8;
-    tai += 2; 
-    return tai;
+    tai += 2; return tai;
 }
 
 function endGame(title, isWin, tai = 0) {
     active = false;
     clearInterval(timerInterval);
-    const achieved = Records.update(tai, elapsed, isWin);
+    const achieved = Records.update(tai, elapsed, snake.body.length, isWin);
     let msg = title;
     if (achieved.length > 0) msg += "\n破紀錄：" + achieved.join(", ");
+    msg += `\n本次蛇身長度：${snake.body.length} 張`;
     msg += "\n\n點擊畫面重玩";
     gameOverMsg = msg;
 }
@@ -367,31 +358,18 @@ function drawTile(x, y, char, isRed, isHead, isGlow) {
     ctx.fillText(char, 0, -2); ctx.restore();
 }
 
-// 全新訊息顯示 (紅字白暈、移除背景)
 function drawEndMessage() {
     ctx.save();
-    
-    // 半透明背景層 (為了看清楚蛇身，只做極淡的遮罩)
     ctx.fillStyle = "rgba(0,0,0,0.3)";
     ctx.fillRect(0, 0, 360, 360);
-    
-    ctx.font = "bold 24px 微軟正黑體, Microsoft JhengHei";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    
+    ctx.font = "bold 22px 微軟正黑體, Microsoft JhengHei";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
     const lines = gameOverMsg.split('\n');
     lines.forEach((line, i) => {
-        const py = 150 + i * 35;
-        
-        // 1. 繪製白色暈邊 (縮小範圍：lineWidth=3)
-        ctx.strokeStyle = "white";
-        ctx.lineWidth = 3; 
-        ctx.lineJoin = "round";
+        const py = 140 + i * 32;
+        ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.lineJoin = "round";
         ctx.strokeText(line, 180, py);
-        
-        // 2. 繪製紅色主文字
-        ctx.fillStyle = "#ff1744"; // 亮紅色
-        ctx.fillText(line, 180, py);
+        ctx.fillStyle = "#ff1744"; ctx.fillText(line, 180, py);
     });
     ctx.restore();
 }
