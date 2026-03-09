@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 極致成就版</title>
+    <title>白六麻將貪食蛇 - 大字視覺版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; padding-top: 10px; }
@@ -21,7 +21,8 @@
         
         .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1.5px solid var(--gold); position: relative; margin-bottom: 12px; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
         .set-type-tag { position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #fff; background: #333; padding: 0 4px; border-radius: 3px; border: 1px solid var(--gold); white-space: nowrap; z-index: 5; }
-        .tile { width: 22px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 20px; margin: 0 1px; border-radius: 2px; background: #fff; box-shadow: 1px 1px 0 #ccc; color: #1d3557; padding-bottom: 5px; line-height: 1; }
+        /* 下方保留區的文字也同步加大 */
+        .tile { width: 22px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 24px; margin: 0 1px; border-radius: 2px; background: #fff; box-shadow: 1px 1px 0 #ccc; color: #1d3557; padding-bottom: 2px; line-height: 1; }
         
         #sorting-overlay { position: fixed; inset: 0; background: rgba(13, 17, 23, 0.98); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
         #hand-area { display: flex; flex-wrap: wrap; width: 340px; gap: 5px; justify-content: center; margin-bottom: 25px; }
@@ -91,7 +92,6 @@ const Records = {
         let r = Records.get(); let achieved = [];
         if (isWin) { if (tai > (r.maxTai || 0)) { r.maxTai = tai; achieved.push("最高台數"); } if (time < (r.minTime || 9999)) { r.minTime = time; achieved.push("最短胡牌"); } }
         if (time > (r.maxTime || 0)) { r.maxTime = time; achieved.push("最久生存"); }
-        // 【優化】記錄訊息中包含具體張數
         if (bodyCount > (r.maxBody || 0)) { r.maxBody = bodyCount; achieved.push(`最長蛇身 (${bodyCount}張)`); }
         Records.save(r); return achieved;
     },
@@ -138,10 +138,10 @@ function handleEat(newT) {
             for (let j = i + 1; j < snake.body.length; j++) {
                 const b1 = snake.body[i], b2 = snake.body[j];
                 if (MJ.isPair(b1.t, b2.t) && (!b1.isRed || !b2.isRed)) {
-                    const finalLength = snake.body.length; // 紀錄縮減前的真實長度
+                    const finalLength = snake.body.length;
                     snake.body = [b1, b2];
-                    const tai = calculateTai();
-                    endGame(`🎉 胡牌！ ${tai} 台`, true, tai, finalLength); 
+                    const taiData = calculateTai();
+                    endGame(`🎉 胡牌！ ${taiData.total} 台`, true, taiData.total, finalLength, taiData.list); 
                     return;
                 }
             }
@@ -150,55 +150,57 @@ function handleEat(newT) {
     updateUI();
 }
 
-function calculateTai() { let tai = 1; const kSets = reserved.filter(r => r.type === "刻子"); kSets.forEach(s => { if (s.tiles[0].id >= 27) tai += 1; }); if (kSets.length === 5) tai += 13; else if (kSets.length === 4) tai += 8; tai += 2; return tai; }
+function calculateTai() {
+    let list = []; let total = 0;
+    list.push({ name: "底台", val: 1 }); total += 1;
+    const kSets = reserved.filter(r => r.type === "刻子");
+    kSets.forEach(s => { if (s.tiles[0].id >= 27) { list.push({ name: `刻子 (${s.tiles[0].char})`, val: 1 }); total += 1; } });
+    if (kSets.length === 5) { list.push({ name: "五刻胡 (大滿貫)", val: 13 }); total += 13; }
+    else if (kSets.length === 4) { list.push({ name: "四刻胡", val: 8 }); total += 8; }
+    list.push({ name: "全求人", val: 2 }); total += 2;
+    return { total, list };
+}
 
-function endGame(title, isWin, tai = 0, manualBodyCount = null) {
-    active = false;
-    clearInterval(timerInterval);
-    
+function endGame(title, isWin, tai = 0, manualBodyCount = null, taiList = []) {
+    active = false; clearInterval(timerInterval);
     const finalLength = manualBodyCount !== null ? manualBodyCount : snake.body.length;
     const achieved = Records.update(tai, elapsed, finalLength, isWin);
-    
-    let msg = title;
-    if (achieved.length > 0) {
-        msg += "\n破紀錄：" + achieved.join(", ");
-        isBreakingRecord = true;
-    } else {
-        isBreakingRecord = false;
-    }
-    
-    // 【修正】不再顯示固定長度，僅在破紀錄時於 achieved 清單中呈現
-    msg += "\n\n點擊畫面重玩";
-    gameOverMsg = msg;
+    let msg = title + "\n";
+    if (isWin && taiList.length > 0) { taiList.forEach(item => { msg += `├ ${item.name}: ${item.val} 台\n`; }); msg += "──────────\n"; }
+    if (achieved.length > 0) { msg += "破紀錄：" + achieved.join(", ") + "\n"; isBreakingRecord = true; } else { isBreakingRecord = false; }
+    msg += "\n點擊畫面重玩"; gameOverMsg = msg;
 }
 
 function draw() { ctx.clearRect(0,0,360,360); ctx.strokeStyle = "rgba(255,255,255,0.05)"; for(let i=0; i<=360; i+=30) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke(); } let isWaitingFor = false; if (reserved.length === 5 && food) { const blacks = snake.body.filter(b => !b.isRed); if (blacks.some(b => b.t.id === food.t.id)) isWaitingFor = true; } if(food) drawTile(food.x, food.y, food.t.char, true, false, isWaitingFor); const dynamicGap = Math.round(29 / speed); for (let i = snake.body.length - 1; i >= 0; i--) { const p = snake.history[i * dynamicGap]; if(p) drawTile(p.x, p.y, snake.body[i].t.char, snake.body[i].isRed, i === 0, false); } }
-function drawTile(x, y, char, isRed, isHead, isGlow) { ctx.save(); ctx.translate(x, y); if (isGlow) { ctx.shadowBlur = 15; ctx.shadowColor = "gold"; ctx.globalAlpha = 0.5 + (glowAlpha * 0.5); ctx.fillStyle = "gold"; ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 6); ctx.fill(); ctx.globalAlpha = 1; } ctx.fillStyle = isHead ? "#ffb703" : "#fff"; ctx.beginPath(); ctx.roundRect(-14, -14, 28, 28, 4); ctx.fill(); ctx.fillStyle = isRed ? "#e63946" : "#1d3557"; ctx.font = "bold 20px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(char, 0, -2); ctx.restore(); }
+
+// 【核心修改】加大字體尺寸並優化位置
+function drawTile(x, y, char, isRed, isHead, isGlow) { 
+    ctx.save(); 
+    ctx.translate(x, y); 
+    if (isGlow) { 
+        ctx.shadowBlur = 15; ctx.shadowColor = "gold"; ctx.globalAlpha = 0.5 + (glowAlpha * 0.5); ctx.fillStyle = "gold"; ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 6); ctx.fill(); ctx.globalAlpha = 1; 
+    } 
+    ctx.fillStyle = isHead ? "#ffb703" : "#fff"; 
+    ctx.beginPath(); 
+    ctx.roundRect(-14, -14, 28, 28, 4); // 方塊尺寸維持不變
+    ctx.fill(); 
+
+    ctx.fillStyle = isRed ? "#e63946" : "#1d3557"; 
+    // 將字體加大到 26px，並使用更具重量感的字重
+    ctx.font = "bold 26px Arial, '微軟正黑體'"; 
+    ctx.textAlign = "center"; 
+    ctx.textBaseline = "middle"; 
+    // 垂直偏移微調為 -1，讓字體在視覺上更貼合方塊
+    ctx.fillText(char, 0, -1); 
+    ctx.restore(); 
+}
 
 function drawEndMessage() {
-    ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
-    ctx.fillRect(0, 0, 360, 360);
-    ctx.font = "bold 22px 微軟正黑體, Microsoft JhengHei";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    
-    if (isBreakingRecord) {
-        const pulse = 15 + glowAlpha * 5;
-        ctx.shadowBlur = pulse;
-        ctx.shadowColor = "gold";
-    }
-
+    ctx.save(); ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fillRect(0, 0, 360, 360);
+    ctx.font = "bold 18px 微軟正黑體, Microsoft JhengHei"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    if (isBreakingRecord) { const pulse = 15 + glowAlpha * 5; ctx.shadowBlur = pulse; ctx.shadowColor = "gold"; }
     const lines = gameOverMsg.split('\n');
-    lines.forEach((line, i) => {
-        const py = 140 + i * 32;
-        ctx.strokeStyle = "white";
-        ctx.lineWidth = 3; 
-        ctx.lineJoin = "round";
-        ctx.strokeText(line, 180, py);
-        ctx.fillStyle = "#ff1744"; 
-        ctx.fillText(line, 180, py);
-    });
+    lines.forEach((line, i) => { const py = 80 + i * 26; ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.strokeText(line, 180, py); ctx.fillStyle = "#ff1744"; ctx.fillText(line, 180, py); });
     ctx.restore();
 }
 
