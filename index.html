@@ -3,18 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>白六麻將貪食蛇 - 操作優化版</title>
+    <title>白六麻將貪食蛇 - 字牌路徑精準修正版</title>
     <style>
         :root { --bg: #0d1117; --board: #163e32; --gold: #ffb703; --red: #e63946; --blue: #457b9d; }
         
-        /* 【新增】全局禁用選取與預覽選單，確保遊戲點擊流暢 */
         * {
-            -webkit-user-select: none;  /* Safari/Chrome */
-            -moz-user-select: none;     /* Firefox */
-            -ms-user-select: none;      /* IE/Edge */
-            user-select: none;          /* Standard */
-            -webkit-touch-callout: none; /* 禁用 iOS 長按彈出選單 */
-            -webkit-tap-highlight-color: transparent; /* 移除點擊時的藍色高亮框 */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body { margin: 0; background: var(--bg); color: #f8f9fa; font-family: "微軟正黑體", "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; touch-action: none; overflow: hidden; padding-top: 10px; }
@@ -32,11 +31,15 @@
         
         .set-box { display: flex; background: #f1faee; padding: 2px; border-radius: 4px; border: 1.5px solid var(--gold); position: relative; margin-bottom: 12px; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
         .set-type-tag { position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #fff; background: #333; padding: 0 4px; border-radius: 3px; border: 1px solid var(--gold); white-space: nowrap; z-index: 5; }
-        .tile { width: 22px; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 24px; margin: 0 1px; border-radius: 2px; background: #fff; box-shadow: 1px 1px 0 #ccc; color: #1d3557; padding-bottom: 5px; line-height: 1; }
+        
+        .tile { width: 22px; height: 30px; margin: 0 1px; border-radius: 2px; background: #fff no-repeat center/contain; box-shadow: 1px 1px 0 #ccc; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: #000; }
         
         #sorting-overlay { position: fixed; inset: 0; background: rgba(13, 17, 23, 0.98); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        #loading-msg { color: var(--gold); font-size: 18px; margin-bottom: 20px; text-align: center; line-height: 1.6; }
+        #sorting-content { display: none; flex-direction: column; align-items: center; }
+        
         #hand-area { display: flex; flex-wrap: wrap; width: 340px; gap: 5px; justify-content: center; margin-bottom: 25px; }
-        .hand-tile { width: 38px; height: 52px; background: #fff; color: #1d3557; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-size: 34px; cursor: pointer; border: 2px solid #ccc; padding-bottom: 8px; }
+        .hand-tile { width: 38px; height: 52px; background: #fff no-repeat center/contain; border-radius: 4px; cursor: pointer; border: 2px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: bold; color: #000; line-height: 1.2; text-align: center; }
         .hand-tile.selected { border: 3px solid var(--gold); transform: translateY(-10px); }
         .ctrl-btn { padding: 12px 25px; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; margin: 0 10px; outline: none; }
         #form-set-btn { background: var(--blue); color: white; }
@@ -53,11 +56,14 @@
 <body>
 
 <div id="sorting-overlay">
-    <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 白六麻將貪食蛇</h2>
-    <div id="hand-area"></div>
-    <div style="display:flex;">
-        <button id="form-set-btn" class="ctrl-btn">組成牌組</button>
-        <button id="start-game-btn" class="ctrl-btn">進入遊戲</button>
+    <div id="loading-msg">🀄 正在下載麻將向量圖資...<br><span style="font-size:12px;color:#888;">正在經由快取節點校正 1z ~ 7z 字牌路徑</span></div>
+    <div id="sorting-content">
+        <h2 style="color:var(--gold); margin:0 0 10px 0;">🀄 白六麻將貪食蛇</h2>
+        <div id="hand-area"></div>
+        <div style="display:flex;">
+            <button id="form-set-btn" class="ctrl-btn">組成牌組</button>
+            <button id="start-game-btn" class="ctrl-btn">進入遊戲</button>
+        </div>
     </div>
 </div>
 
@@ -87,12 +93,108 @@
 </div>
 
 <script>
+const CDN_BASE_URL = "https://cdn.jsdelivr.net/gh/kuochili-ops/mahjong_graphic@ae6643fdb0c1a32c374085a1f03a1d9105f7460c/";
+const SVG_BASE_URL = CDN_BASE_URL + encodeURIComponent("Vectors 矢量图/SVG/");
+
+// 【完美校正】字牌全數調整為您的 1z.svg ~ 7z.svg 精准路徑！
+const svgFiles = [
+    '1m','2m','3m','4m','5m','6m','7m','8m','9m', // 萬子 (0-8)
+    '1p','2p','3p','4p','5p','6p','7p','8p','9p', // 筒子 (9-17)
+    '1s','2s','3s','4s','5s','6s','7s','8s','9s', // 條子 (18-26)
+    '1z','2z','3z','4z',                           // 東南西北 (27-30) -> 1z ~ 4z
+    '5z','6z','7z'                                 // 中發白 (31-33) -> 5z ~ 7z
+];
+
+const CHINESE_NAMES = [
+    "一萬","二萬","三萬","四萬","五萬","六萬","七萬","八萬","九萬",
+    "一筒","二筒","三筒","四筒","五筒","六筒","七筒","八筒","九筒",
+    "一條","二條","三條","四條","五條","六條","七條","八條","九條",
+    "東風","南風","西風","北風",
+    "紅中","發財","白板"
+];
+
 const MJ = (() => {
-    const chars = ['🀇','🀈','🀉','🀊','🀋','🀌','🀍','🀎','🀏','🀙','🀚','🀛','🀜','🀝','🀞','🀟','🀠','🀡','🀐','🀑','🀒','🀓','🀔','🀕','🀖','🀗','🀘','🀀','🀁','🀂','🀃','🀄','🀅','🀆'];
     let pool = [];
-    const initPool = () => { pool = []; for(let i=0; i<chars.length; i++) for(let j=0; j<4; j++) pool.push(i); for(let i=pool.length-1; i>0; i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i], pool[j]] = [pool[j], pool[i]]; } };
-    const getT = (id) => ({ id, char: chars[id], suit: id < 27 ? Math.floor(id/9) : 3, val: id < 27 ? (id%9)+1 : (id-26) });
-    initPool(); return { draw: () => { if (pool.length === 0) initPool(); return getT(pool.pop()); }, getPoolCount: () => pool.length, isSet: (tiles) => { const arr = [...tiles].sort((a, b) => a.id - b.id); if (arr.length === 3) { if (arr[0].id === arr[1].id && arr[1].id === arr[2].id) return "刻子"; if (arr[0].suit === arr[1].suit && arr[1].suit === arr[2].suit && arr[0].suit < 3) { if (arr[1].val === arr[0].val + 1 && arr[2].val === arr[1].val + 1) return "順子"; } } return null; }, isPair: (a, b) => a.id === b.id, sort: (list) => list.sort((a, b) => a.id - b.id) };
+    let images = []; 
+    let loadStatus = []; 
+    let loadedCount = 0;
+
+    const initPool = () => { 
+        pool = []; 
+        for(let i=0; i<34; i++) for(let j=0; j<4; j++) pool.push(i); 
+        for(let i=pool.length-1; i>0; i--){ 
+            const j=Math.floor(Math.random()*(i+1)); 
+            [pool[i], pool[j]] = [pool[j], pool[i]]; 
+        } 
+    };
+
+    const preloadImages = (callback) => {
+        let hasCalledBack = false;
+        
+        const safetyTimeout = setTimeout(() => {
+            if (!hasCalledBack) {
+                hasCalledBack = true;
+                document.getElementById('loading-msg').style.display = 'none';
+                document.getElementById('sorting-content').style.display = 'flex';
+                callback();
+            }
+        }, 3000);
+
+        const checkComplete = () => {
+            if (loadedCount === 34 && !hasCalledBack) {
+                clearTimeout(safetyTimeout);
+                hasCalledBack = true;
+                document.getElementById('loading-msg').style.display = 'none';
+                document.getElementById('sorting-content').style.display = 'flex';
+                callback();
+            }
+        };
+
+        svgFiles.forEach((file, index) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = `${SVG_BASE_URL}${file}.svg`;
+            img.onload = () => {
+                loadStatus[index] = true;
+                loadedCount++;
+                checkComplete();
+            };
+            img.onerror = () => {
+                loadStatus[index] = false; 
+                loadedCount++;
+                checkComplete();
+            };
+            images[index] = img;
+        });
+    };
+
+    const getT = (id) => ({ 
+        id, 
+        imgObj: images[id], 
+        imgUrl: `${SVG_BASE_URL}${svgFiles[id]}.svg`,
+        isImgReady: loadStatus[id] || false,
+        name: CHINESE_NAMES[id],
+        suit: id < 27 ? Math.floor(id/9) : 3, 
+        val: id < 27 ? (id%9)+1 : (id-26) 
+    });
+
+    return { 
+        init: (callback) => { preloadImages(() => { initPool(); callback(); }); },
+        draw: () => { if (pool.length === 0) initPool(); return getT(pool.pop()); }, 
+        getPoolCount: () => pool.length, 
+        isSet: (tiles) => { 
+            const arr = [...tiles].sort((a, b) => a.id - b.id); 
+            if (arr.length === 3) { 
+                if (arr[0].id === arr[1].id && arr[1].id === arr[2].id) return "刻子"; 
+                if (arr[0].suit === arr[1].suit && arr[1].suit === arr[2].suit && arr[0].suit < 3) { 
+                    if (arr[1].val === arr[0].val + 1 && arr[2].val === arr[1].val + 1) return "順子"; 
+                } 
+            } 
+            return null; 
+        }, 
+        isPair: (a, b) => a.id === b.id, 
+        sort: (list) => list.sort((a, b) => a.id - b.id) 
+    };
 })();
 
 const Records = {
@@ -121,7 +223,33 @@ const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
 
 function initSorting() { Records.display(); initialHand = []; for(let i=0; i<17; i++) initialHand.push(MJ.draw()); renderHand(); }
-function renderHand() { MJ.sort(initialHand); const handArea = document.getElementById('hand-area'); handArea.innerHTML = ''; selectedItems = []; initialHand.forEach((t, idx) => { const div = document.createElement('div'); div.className = 'hand-tile'; div.innerText = t.char; div.onclick = () => { if(div.classList.contains('selected')) { div.classList.remove('selected'); selectedItems = selectedItems.filter(item => item.idx !== idx); } else if(selectedItems.length < 4) { div.classList.add('selected'); selectedItems.push({t, idx}); } }; handArea.appendChild(div); }); updateUI(); }
+function renderHand() { 
+    MJ.sort(initialHand); 
+    const handArea = document.getElementById('hand-area'); 
+    handArea.innerHTML = ''; 
+    selectedItems = []; 
+    initialHand.forEach((t, idx) => { 
+        const div = document.createElement('div'); 
+        div.className = 'hand-tile'; 
+        if (t.isImgReady) {
+            div.style.backgroundImage = `url(${t.imgUrl})`; 
+        } else {
+            div.innerHTML = t.name.split('').join('<br>');
+            div.style.color = (t.suit === 0) ? '#d90429' : (t.suit === 1 ? '#1f77b4' : '#2b9348');
+        }
+        div.onclick = () => { 
+            if(div.classList.contains('selected')) { 
+                div.classList.remove('selected'); 
+                selectedItems = selectedItems.filter(item => item.idx !== idx); 
+            } else if(selectedItems.length < 4) { 
+                div.classList.add('selected'); 
+                selectedItems.push({t, idx}); 
+            } 
+        }; 
+        handArea.appendChild(div); 
+    }); 
+    updateUI(); 
+}
 
 document.getElementById('form-set-btn').onclick = () => { const tiles = selectedItems.map(s => s.t); const type = MJ.isSet(tiles); if(type && reserved.length < 5) { reserved.push({tiles: tiles, type: type}); const indices = selectedItems.map(s => s.idx).sort((a,b)=>b-a); indices.forEach(i => initialHand.splice(i, 1)); renderHand(); } };
 document.getElementById('start-game-btn').onclick = () => { 
@@ -149,7 +277,28 @@ function update() {
 }
 
 function handleEat(newT) {
-    let foundSet = false; for (let i = 0; i < snake.body.length; i++) { for (let j = i + 1; j < snake.body.length; j++) { const setType = MJ.isSet([newT, snake.body[i].t, snake.body[j].t]); if (setType) { if ((!snake.body[i].isRed || !snake.body[j].isRed) && reserved.length < 5) { reserved.push({tiles: [newT, snake.body[i].t, snake.body[j].t], type: setType}); snake.body.splice(j, 1); snake.body.splice(i, 1); foundSet = true; break; } else if (snake.body[i].isRed && snake.body[j].isRed) { snake.body.splice(j, 1); snake.body.splice(i, 1); foundSet = true; break; } } } if (foundSet) break; }
+    let foundSet = false; 
+    for (let i = 0; i < snake.body.length; i++) { 
+        for (let j = i + 1; j < snake.body.length; j++) { 
+            const setType = MJ.isSet([newT, snake.body[i].t, snake.body[j].t]); 
+            if (setType) { 
+                if ((!snake.body[i].isRed || !snake.body[j].isRed) && reserved.length < 5) { 
+                    reserved.push({tiles: [newT, snake.body[i].t, snake.body[j].t], type: setType}); 
+                    snake.body.splice(j, 1); 
+                    snake.body.splice(i, 1); 
+                    foundSet = true; 
+                    break; 
+                } else if (snake.body[i].isRed && snake.body[j].isRed) { 
+                    snake.body.splice(j, 1); 
+                    snake.body.splice(i, 1); 
+                    foundSet = true; 
+                    break; 
+                } 
+            } 
+        } 
+        if (foundSet) break; 
+    }
+    
     if (!foundSet) snake.body.unshift({ t: newT, isRed: true });
     
     if (reserved.length === 5) {
@@ -173,7 +322,7 @@ function calculateTai() {
     let list = []; let total = 0;
     list.push({ name: "底台", val: 1 }); total += 1;
     const kSets = reserved.filter(r => r.type === "刻子");
-    kSets.forEach(s => { if (s.tiles[0].id >= 27) { list.push({ name: `刻子 (${s.tiles[0].char})`, val: 1 }); total += 1; } });
+    kSets.forEach(s => { if (s.tiles[0].id >= 27) { list.push({ name: `刻子 (字牌)`, val: 1 }); total += 1; } });
     if (kSets.length === 5) { list.push({ name: "五刻胡 (大滿貫)", val: 13 }); total += 13; }
     else if (kSets.length === 4) { list.push({ name: "四刻胡", val: 8 }); total += 8; }
     if (gameStartedWithZeroReserved) { list.push({ name: "全求人", val: 2 }); total += 2; }
@@ -190,14 +339,34 @@ function endGame(title, isWin, tai = 0, manualBodyCount = null, taiList = []) {
     msg += "\n點擊畫面重玩"; gameOverMsg = msg;
 }
 
-function draw() { ctx.clearRect(0,0,360,360); ctx.strokeStyle = "rgba(255,255,255,0.05)"; for(let i=0; i<=360; i+=30) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke(); } let isWaitingFor = false; if (reserved.length === 5 && food) { const blacks = snake.body.filter(b => !b.isRed); if (blacks.some(b => b.t.id === food.t.id)) isWaitingFor = true; } if(food) drawTile(food.x, food.y, food.t.char, true, false, isWaitingFor); const dynamicGap = Math.round(29 / speed); for (let i = snake.body.length - 1; i >= 0; i--) { const p = snake.history[i * dynamicGap]; if(p) drawTile(p.x, p.y, snake.body[i].t.char, snake.body[i].isRed, i === 0, false); } }
+function draw() { ctx.clearRect(0,0,360,360); ctx.strokeStyle = "rgba(255,255,255,0.05)"; for(let i=0; i<=360; i+=30) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,360); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(360,i); ctx.stroke(); } let isWaitingFor = false; if (reserved.length === 5 && food) { const blacks = snake.body.filter(b => !b.isRed); if (blacks.some(b => b.t.id === food.t.id)) isWaitingFor = true; } if(food) drawTile(food.x, food.y, food.t, true, false, isWaitingFor); const dynamicGap = Math.round(29 / speed); for (let i = snake.body.length - 1; i >= 0; i--) { const p = snake.history[i * dynamicGap]; if(p) drawTile(p.x, p.y, snake.body[i].t, snake.body[i].isRed, i === 0, false); } }
 
-function drawTile(x, y, char, isRed, isHead, isGlow) { 
+function drawTile(x, y, tileObj, isRed, isHead, isGlow) { 
     ctx.save(); ctx.translate(x, y); 
     if (isGlow) { ctx.shadowBlur = 15; ctx.shadowColor = "gold"; ctx.globalAlpha = 0.5 + (glowAlpha * 0.5); ctx.fillStyle = "gold"; ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 6); ctx.fill(); ctx.globalAlpha = 1; } 
-    ctx.fillStyle = isHead ? "#ffb703" : "#fff"; ctx.beginPath(); ctx.roundRect(-14, -14, 28, 28, 4); ctx.fill(); 
-    ctx.fillStyle = isRed ? "#e63946" : "#1d3557"; ctx.font = "bold 26px Arial, '微軟正黑體'"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
-    ctx.fillText(char, 0, -3); ctx.restore(); 
+    
+    ctx.fillStyle = isHead ? "#ffb703" : "#fff"; 
+    ctx.beginPath(); ctx.roundRect(-14, -14, 28, 28, 4); ctx.fill(); 
+
+    if (isRed) {
+        ctx.fillStyle = "rgba(230, 57, 70, 0.15)";
+        ctx.beginPath(); ctx.roundRect(-14, -14, 28, 28, 4); ctx.fill();
+    }
+
+    if (tileObj.isImgReady && tileObj.imgObj) {
+        ctx.drawImage(tileObj.imgObj, -12, -14, 24, 26);
+    } else {
+        ctx.font = "9px bold 微軟正黑體, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = (tileObj.suit === 0) ? '#d90429' : (tileObj.suit === 1 ? '#1f77b4' : '#2b9348');
+        
+        const txt1 = tileObj.name.substring(0, 1);
+        const txt2 = tileObj.name.substring(1, 2);
+        ctx.fillText(txt1, 0, -6);
+        ctx.fillText(txt2, 0, 5);
+    }
+    ctx.restore(); 
 }
 
 function drawEndMessage() {
@@ -209,11 +378,40 @@ function drawEndMessage() {
     ctx.restore();
 }
 
-function updateUI() { document.getElementById('pool-num').innerText = MJ.getPoolCount(); document.getElementById('r-count').innerText = reserved.length; const area = document.getElementById('reserved-area'); area.innerHTML = ''; reserved.forEach(s => { const d = document.createElement('div'); d.className='set-box'; s.tiles.forEach(t => { const i = document.createElement('div'); i.className='tile'; i.innerText=t.char; d.appendChild(i); }); const tag = document.createElement('div'); tag.className='set-type-tag'; tag.innerText = s.type; d.appendChild(tag); area.appendChild(d); }); }
+function updateUI() { 
+    document.getElementById('pool-num').innerText = MJ.getPoolCount(); 
+    document.getElementById('r-count').innerText = reserved.length; 
+    const area = document.getElementById('reserved-area'); 
+    area.innerHTML = ''; 
+    reserved.forEach(s => { 
+        const d = document.createElement('div'); 
+        d.className='set-box'; 
+        s.tiles.forEach(t => { 
+            const i = document.createElement('div'); 
+            i.className='tile'; 
+            if (t.isImgReady) {
+                i.style.backgroundImage = `url(${t.imgUrl})`; 
+            } else {
+                i.innerText = t.name;
+                i.style.color = (t.suit === 0) ? '#d90429' : (t.suit === 1 ? '#1f77b4' : '#2b9348');
+            }
+            d.appendChild(i); 
+        }); 
+        const tag = document.createElement('div'); 
+        tag.className='set-type-tag'; 
+        tag.innerText = s.type; 
+        d.appendChild(tag); 
+        area.appendChild(d); 
+    }); 
+}
+
 cvs.onclick = () => { if (gameOverMsg) location.reload(); };
 document.getElementById('l-btn').onclick = (e) => { e.preventDefault(); snake.dirIndex = (snake.dirIndex + 3) % 4; };
 document.getElementById('r-btn').onclick = (e) => { e.preventDefault(); snake.dirIndex = (snake.dirIndex + 1) % 4; };
-initSorting();
+
+MJ.init(() => {
+    initSorting();
+});
 </script>
 </body>
 </html>
